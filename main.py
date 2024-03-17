@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from mangum import Mangum
 
+import cProfile
+import pstats
+
 from scraper import Scraper
 
 app = FastAPI()
@@ -10,4 +13,5 @@ scraper = Scraper()
 
 @app.get("/")
 async def read_schedule():
-    return {"schedule": scraper.get_schedule()}
+    schedule = scraper.get_schedule()
+    return {"schedule": schedule}

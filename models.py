@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 
+
 @dataclass
 class ScheduleItem:
     id: str = None
@@ -15,13 +16,13 @@ class ScheduleItem:
         return asdict(self)
 
 
-# @dataclass
-# class User:
-#     id: str = None
-#     first_name: str = None
-#     last_name: str = None
-#     phone: str = None
-#     email: str = None
+@dataclass
+class User:
+    id: str = None
+    first_name: str = None
+    last_name: str = None
+    phone: str = None
+    email: str = None
 
-#     def to_dict(self) -> dict:
-#         return asdict(self)
+    def to_dict(self) -> dict:
+        return asdict(self)
