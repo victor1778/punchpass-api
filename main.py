@@ -17,7 +17,7 @@ async def read_schedule():
 
 @app.get("/schedule/{id}")
 async def read_schedule_item(id: str):
-    if not scraper._get_schedule_stores:
+    if not scraper._get_schedule_store():
         scraper.get_schedule()
 
     schedule_lookup = {item.id: item for item in scraper._get_schedule_store()}
