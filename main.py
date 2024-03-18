@@ -30,6 +30,18 @@ async def read_schedule_item(id: str):
             status_code=404, detail=f"Schedule item with ID {id} not found"
         )
 
+@app.post("/schedule/{id}/check_in")
+async def read_user_name(id: str, request_data: Dict):
+    if not scraper._get_schedule_store():
+        scraper.get_schedule()
+
+    schedule_lookup = {item.id: item for item in scraper._get_schedule_store()}
+    item = schedule_lookup.get(id)
+    name = request_data.get("name")
+    if not name:
+        return {"error": "Full name is required."}
+    await scraper.user_check_in(name, item.url)
+    return {"success" : "!!!"}
 
 @app.post("/users/fetch-data")
 async def read_user_email(request_data: Dict):

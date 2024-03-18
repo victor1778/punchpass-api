@@ -5,6 +5,7 @@ from functools import lru_cache
 from typing import Dict, Optional
 
 import requests
+from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
 import creds
@@ -17,6 +18,7 @@ logging.basicConfig(
 
 INSTRUCTOR_REGEX = re.compile(r"with\s+(.+?)(?:\s*⋅\s*(.+))?$")
 END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
+SBR_WS_CDP = "wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222"
 
 
 class Scraper:
@@ -98,7 +100,7 @@ class Scraper:
                 f"{self.baseurl}/account/companies/12433/switch_to_admin_view"
             )
             self._save_cookies_to_store()
-  
+
     def get_page(self, url: str) -> Optional[requests.Response]:
         """
         Fetches a page from the given URL.
@@ -239,3 +241,25 @@ class Scraper:
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
         return data
+
+    async def user_check_in(self, name: str, url: str):
+        async with async_playwright() as p:
+            logging.info(f"Connecting to Scraping Browser...")
+            browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+            try:
+                logging.info(f"Connected! Navigating...")
+                context = await browser.new_context()
+                page = await context.new_page()
+                await context.add_cookies(
+                    Utils.load_cookies(self.cookies_store, self.baseurl)
+                )
+                await page.goto(f"{url}/attendances/new")
+                input = page.get_by_placeholder("Search")
+                await input.type(name)
+                user_btn = page.get_by_title(name, exact=True)
+                await user_btn.click()
+                logging.info(f"Successfully checked in {name}")
+            except Exception as e:
+                logging.error(f"Error checking in {name}: {e}")
+            finally:
+                await browser.close()
