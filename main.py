@@ -19,4 +19,4 @@ async def read_schedule():
 async def read_user_email(email: str = Query(..., description="The email linked with Punchpass user account")):
     response = fetch_punchpass_user_data(email, scraper.cookies_store)
     data = extract_user_data(response)
-    return data
+    return data[0]
