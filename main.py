@@ -9,7 +9,7 @@ app = FastAPI()
 scraper = Scraper()
 
 
-@app.get("/schedule/")
+@app.get("/schedule")
 async def read_schedule():
     scraper.get_schedule()
     return {"schedule": scraper._get_schedule_store()}
