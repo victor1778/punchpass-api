@@ -7,6 +7,30 @@ from selectolax.parser import HTMLParser
 from models import Event
 from scraper import Scraper
 
+import os
+from datetime import datetime
+
+def setup_logging():
+    """Sets up logging to file and console."""
+    logs_dir = "logs"
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
+    log_filename = os.path.join(logs_dir, f"scraper_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(log_filename),
+            logging.StreamHandler()
+        ]
+    )
+
+# Configure logging as the first action
+setup_logging()
+logging.info("Logging is configured.")
+
 scraper = Scraper()
 
 def extract_schedule() -> str:
@@ -55,7 +79,7 @@ def load_schedule(cur, items: list[Event]) -> None:
     try:
         cur.executemany(
             """
-            INSERT INTO Event
+            INSERT INTO Event 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(EventID) DO UPDATE SET
                 Status=excluded.Status,
@@ -80,7 +104,7 @@ def main():
     html = extract_schedule()
     schedule = transform_schedule(html)
 
-    with sqlite3.connect("../database.db") as conn:
+    with sqlite3.connect("database.db") as conn:
         cur = conn.cursor()
         load_schedule(cur, schedule)
         conn.commit()
