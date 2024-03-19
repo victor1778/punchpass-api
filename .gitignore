@@ -2,5 +2,4 @@
 .venv/
 .pytest_cache/
 
-session_cookies.pkl
-user_check_in.py
+init_db.py

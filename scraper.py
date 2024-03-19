@@ -1,16 +1,15 @@
 import logging
+import os
 import re
 from datetime import datetime
-from functools import lru_cache
 from typing import Dict, Optional
 
 import requests
 from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
-import creds
-from models import ScheduleItem
-from utils import CachedList, Utils
+from models import Event, User
+from utils import Utils
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -74,9 +73,6 @@ class Scraper:
                 logging.error(f"Failed to load cookies: {e}")
 
     def _save_cookies_to_store(self) -> None:
-        """
-        Saves cookies to the in-memory store.
-        """
         try:
             Scraper.cookies_store = self.session.cookies.get_dict()
             logging.info("Saved cookies to in-memory store")
@@ -84,17 +80,17 @@ class Scraper:
             logging.error(f"Failed to save cookies: {e}")
 
     def _login(self) -> None:
-        """
-        Performs the login process.
-        """
         if not Scraper.cookies_store:
             auth_token = self._get_auth_token()
+            email = os.environ.get("EMAIL")
+            password = os.environ.get("PASSWORD")
 
             payload = {
                 "authenticity_token": auth_token,
-                "account[email]": creds.email,
-                "account[password]": creds.password,
+                "account[email]": email,
+                "account[password]": password,
             }
+
             self.session.post(f"{self.baseurl}/account/sign_in", data=payload)
             self.get_page(
                 f"{self.baseurl}/account/companies/12433/switch_to_admin_view"
@@ -102,15 +98,6 @@ class Scraper:
             self._save_cookies_to_store()
 
     def get_page(self, url: str) -> Optional[requests.Response]:
-        """
-        Fetches a page from the given URL.
-
-        Args:
-            url (str): The URL of the page to fetch.
-
-        Returns:
-            requests.Response: The response object if successful, None otherwise.
-        """
         try:
             response = self.session.get(url, headers=self.headers)
             response.raise_for_status()
@@ -119,40 +106,9 @@ class Scraper:
             logging.error(f"Failed to fetch page: {url}. Error: {e}")
             return None
 
-    @lru_cache(maxsize=128)
-    def _get_schedule_store(self) -> list[ScheduleItem]:
-        return CachedList()
-
-    def get_schedule(self) -> list[ScheduleItem]:
-        """
-        Retrieves the schedule data.
-
-        Returns:
-            list[ScheduleItem]: A list of ScheduleItem objects representing the schedule.
-
-        Raises:
-            Exception: If failed to retrieve schedule data.
-        """
-        r = self.get_page(f"{self.baseurl}/hub")
-        if r and r.status_code == 200:
-            schedule_items = self.get_schedule_items(r.text)
-            self._get_schedule_store().extend(schedule_items)
-            return self._get_schedule_store()
-        raise Exception("Failed to retrieve schedule data")
-
-    def parse_schedule_item(self, elem: HTMLParser, date: str) -> ScheduleItem:
-        """
-        Parses a schedule item from the given HTML element and date.
-
-        Args:
-            elem (HTMLParser): The HTML element representing the schedule item.
-            date (str): The date of the schedule item.
-
-        Returns:
-            ScheduleItem: The parsed ScheduleItem object.
-        """
+    def parse_schedule_item(self, elem: HTMLParser, date: str) -> Event:
         url = f"{self.baseurl}{elem.css_first('div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon').attrs['href']}"
-        item_id = url.split("/")[-1]
+        id = url.split("/")[-1]
         status = (
             "cancelled"
             if elem.css_first(
@@ -186,39 +142,12 @@ class Scraper:
         )
         dt = datetime.strptime(f"{date} {start_elem}", "%B %d, %Y %I:%M %p")
         start = Utils.format_time(dt.isoformat())
-        end = self.get_end_time(url)
-        return ScheduleItem(
-            item_id, status, url, title, location, instructor, start, end
+        end = self._get_end_time(url)
+        return Event(
+            int(id), status, url, title, location, instructor, start, end
         )
 
-    def get_schedule_items(self, html_content: str) -> list[ScheduleItem]:
-        """
-        Parses and returns a list of ScheduleItem objects from the given HTML content.
-
-        Args:
-            html_content (str): The HTML content containing the schedule data.
-
-        Returns:
-            list[ScheduleItem]: A list of ScheduleItem objects representing the schedule.
-        """
-        html = HTMLParser(html_content)
-        elems = html.css_first("div.instances-for-day").css(
-            "div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
-        )
-        elems_date = html.css_first("div.instances-for-day").attrs["data-day"]
-        return [self.parse_schedule_item(elem, elems_date) for elem in elems]
-
-    def get_end_time(self, url: str) -> Optional[Dict[str, str]]:
-        """
-        Retrieves the end time for the given URL.
-
-        Args:
-            url (str): The URL of the schedule item.
-
-        Returns:
-            Dict[str, str]: A dictionary containing the formatted end time information,
-                            or None if the end time could not be parsed.
-        """
+    def _get_end_time(self, url: str) -> Optional[Dict[str, str]]:
         response = self.get_page(url)
         if response and response.status_code == 200:
             html = HTMLParser(response.text)
@@ -232,15 +161,18 @@ class Scraper:
                 logging.error("Failed to parse end time.")
         return None
 
-    def fetch_punchpass_user_data(self, email: str) -> Dict:
+    def fetch_punchpass_user_data(self, email: str) -> User | None:
         url = f"https://app.punchpass.com/a/customers.json?columns[3][data]=email&columns[3][searchable]=true&columns[3][orderable]=true&columns[3][search][value]={email}&start=0&length=1"
         try:
             response = self.get_page(url)
             response.raise_for_status()
-            data = response.json()
+            data = Utils.parse_user_data(response.json())
+            if not data:
+                return None
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
-        return data
+        finally:
+            return data
 
     async def user_check_in(self, name: str, url: str):
         async with async_playwright() as p:
@@ -251,7 +183,7 @@ class Scraper:
                 context = await browser.new_context()
                 page = await context.new_page()
                 await context.add_cookies(
-                    Utils.load_cookies(self.cookies_store, self.baseurl)
+                    Utils.format_cookies(self.cookies_store, self.baseurl)
                 )
                 await page.goto(f"{url}/attendances/new")
                 input = page.get_by_placeholder("Search")
@@ -261,5 +193,6 @@ class Scraper:
                 logging.info(f"Successfully checked in {name}")
             except Exception as e:
                 logging.error(f"Error checking in {name}: {e}")
+                return None
             finally:
                 await browser.close()
