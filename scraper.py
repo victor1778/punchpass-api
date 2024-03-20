@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from typing import Dict, Optional
 
-import requests
+import httpx
 from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
@@ -34,7 +34,7 @@ class Scraper:
     def __init__(self) -> None:
         logging.info("Initializing Scraper")
         if not hasattr(self, "session"):
-            self.session = requests.session()
+            self.client = httpx.Client()
             self.headers = {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             }
@@ -72,13 +72,6 @@ class Scraper:
             except Exception as e:
                 logging.error(f"Failed to load cookies: {e}")
 
-    def _save_cookies_to_store(self) -> None:
-        try:
-            Scraper.cookies_store = self.session.cookies.get_dict()
-            logging.info("Saved cookies to in-memory store")
-        except Exception as e:
-            logging.error(f"Failed to save cookies: {e}")
-
     def _login(self) -> None:
         if not Scraper.cookies_store:
             auth_token = self._get_auth_token()
@@ -91,18 +84,26 @@ class Scraper:
                 "account[password]": password,
             }
 
-            self.session.post(f"{self.baseurl}/account/sign_in", data=payload)
+            response = self.client.post(f"{self.baseurl}/account/sign_in", data=payload)
+
+            self.cookies_store = {
+                "force_login_key": response.cookies.get("force_login_key"),
+                "remember_account_token": response.cookies.get(
+                    "remember_account_token"
+                ),
+                "_punchpass52_session": response.cookies.get("_punchpass52_session"),
+            }
+            logging.info("Saved cookies to in-memory store")
+
             self.get_page(
                 f"{self.baseurl}/account/companies/12433/switch_to_admin_view"
             )
-            self._save_cookies_to_store()
 
-    def get_page(self, url: str) -> Optional[requests.Response]:
+    def get_page(self, url: str) -> Optional[httpx.Response]:
         try:
-            response = self.session.get(url, headers=self.headers)
-            response.raise_for_status()
+            response = self.client.get(url, headers=self.headers)
             return response
-        except requests.RequestException as e:
+        except Exception as e:
             logging.error(f"Failed to fetch page: {url}. Error: {e}")
             return None
 
@@ -143,9 +144,7 @@ class Scraper:
         dt = datetime.strptime(f"{date} {start_elem}", "%B %d, %Y %I:%M %p")
         start = Utils.format_time(dt.isoformat())
         end = self._get_end_time(url)
-        return Event(
-            int(id), status, url, title, location, instructor, start, end
-        )
+        return Event(int(id), status, url, title, location, instructor, start, end)
 
     def _get_end_time(self, url: str) -> Optional[Dict[str, str]]:
         response = self.get_page(url)
@@ -169,8 +168,8 @@ class Scraper:
             data = Utils.parse_user_data(response.json())
             if not data:
                 return None
-        except requests.exceptions.RequestException as e:
-            return {"error": str(e)}
+        except Exception as e:
+            return {"detail": f"Could not fetch user from Punchpass. Error: {e}"}
         finally:
             return data
 
