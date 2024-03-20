@@ -1,5 +1,4 @@
 import asyncio
-import sqlite3
 from typing import Dict
 
 from fastapi import FastAPI, HTTPException
@@ -126,10 +125,7 @@ async def read_user(payload: Dict):
                 status_code=404,
                 detail=f"User with email {email} not found.",
             )
-        with sqlite3.connect("database.db") as conn:
-            cur = conn.cursor()
-            Utils.load_user(cur, data)
-            conn.commit()
+        Utils.load_user(data)
         return data.to_dict()
     else:
         return user

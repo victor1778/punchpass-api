@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import time
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -25,14 +26,12 @@ class Scraper:
     cookies_store: Dict[str, str] = {}
 
     def __new__(cls) -> "Scraper":
-        logging.info("Creating Scraper instance")
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             logging.info("Scraper instance created")
         return cls._instance
 
     def __init__(self) -> None:
-        logging.info("Initializing Scraper")
         if not hasattr(self, "session"):
             self.client = httpx.Client()
             self.headers = {
@@ -48,16 +47,15 @@ class Scraper:
         Returns:
             str: The authentication token.
         """
-        logging.info("Getting authentication token.")
         r = self.get_page(f"{self.baseurl}/account/sign_in")
         if r and r.status_code == 200:
             html = HTMLParser(r.text)
             auth_token = html.css_first("form.simple_form.account input").attributes[
                 "value"
             ]
-            logging.info("Authentication token retrieved.")
+            logging.info("Authentication token retrieved")
             return auth_token
-        logging.error("Failed to get authentication token.")
+        logging.error("Failed to get authentication token")
         return ""
 
     def _load_cookies(self) -> None:
@@ -84,20 +82,19 @@ class Scraper:
                 "account[password]": password,
             }
 
-            response = self.client.post(f"{self.baseurl}/account/sign_in", data=payload)
-
-            self.cookies_store = {
-                "force_login_key": response.cookies.get("force_login_key"),
-                "remember_account_token": response.cookies.get(
-                    "remember_account_token"
-                ),
-                "_punchpass52_session": response.cookies.get("_punchpass52_session"),
-            }
-            logging.info("Saved cookies to in-memory store")
-
+            self.client.post(f"{self.baseurl}/account/sign_in", data=payload)
             self.get_page(
                 f"{self.baseurl}/account/companies/12433/switch_to_admin_view"
             )
+
+            self.cookies_store = {
+                "force_login_key": self.client.cookies.get("force_login_key"),
+                "remember_account_token": self.client.cookies.get(
+                    "remember_account_token"
+                ),
+                "_punchpass52_session": self.client.cookies.get("_punchpass52_session"),
+            }
+            logging.info("Saved cookies to in-memory store")
 
     def get_page(self, url: str) -> Optional[httpx.Response]:
         try:
@@ -110,13 +107,19 @@ class Scraper:
     def parse_schedule_item(self, elem: HTMLParser, date: str) -> Event:
         url = f"{self.baseurl}{elem.css_first('div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon').attrs['href']}"
         id = url.split("/")[-1]
-        status = (
-            "cancelled"
-            if elem.css_first(
-                "cell small-12 small-order-4 medium-shrink medium-order-3 span.instance-status-icon.cancelled"
-            )
-            else "confirmed"
+
+        placeholder = elem.css_first(
+            "div.cell.small-12.small-order-4.medium-shrink.medium-order-3 span"
         )
+        
+        if placeholder is None:
+            status = "confirmed"
+        else:
+            if placeholder.attrs["class"] == "instance-status-icon cancelled":
+                status = "cancelled"
+            else:
+                status = "confirmed"
+
         title = (
             elem.css_first(
                 "div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon"
@@ -173,25 +176,51 @@ class Scraper:
         finally:
             return data
 
-    async def user_check_in(self, name: str, url: str):
+    async def user_check_in(self, name: str, url: str) -> None:
+        start = time.perf_counter()
         async with async_playwright() as p:
-            logging.info(f"Connecting to Scraping Browser...")
             browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
             try:
-                logging.info(f"Connected! Navigating...")
+                logging.info(f"Connected to Scraping Browser. Navigating to {url}...")
                 context = await browser.new_context()
-                page = await context.new_page()
                 await context.add_cookies(
                     Utils.format_cookies(self.cookies_store, self.baseurl)
                 )
+                page = await context.new_page()
+                client = await page.context.new_cdp_session(page)
+
+                await client.send(
+                    "Proxy.setLocation",
+                    {"lat": 30.2712, "lon": -97.7417, "distance": 50},
+                )  # Set location to Austin, TX
+                await client.send(
+                    "Captcha.setAutoSolve", {"autoSolve": False}
+                )  # Disable auto-solving captchas
+                await client.send(
+                    "Network.setCacheDisabled", {"cacheDisabled": False}
+                )  # Force enable cache
+
+                await page.route(
+                    "**/*",
+                    lambda route: (
+                        route.abort()
+                        if route.request.resource_type
+                        in ["image", "media", "font", "stylesheet"]
+                        else route.continue_()
+                    ),
+                )
                 await page.goto(f"{url}/attendances/new")
+                customer_list = page.get_by_title("{{2*2}} lkslsk")
+                await customer_list.wait_for(state="attached")
                 input = page.get_by_placeholder("Search")
                 await input.type(name)
                 user_btn = page.get_by_title(name, exact=True)
+                await user_btn.wait_for(state="attached")
                 await user_btn.click()
-                logging.info(f"Successfully checked in {name}")
             except Exception as e:
                 logging.error(f"Error checking in {name}: {e}")
                 return None
             finally:
                 await browser.close()
+        runtime = "{:.4f}".format(time.perf_counter() - start)
+        logging.info(f"Request completed in {runtime} s")

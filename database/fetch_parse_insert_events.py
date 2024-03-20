@@ -1,9 +1,13 @@
 import logging
+import os
 import sqlite3
+import sys
 import time
 from typing import Generator
 
 from selectolax.parser import HTMLParser
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from models import Event
 from scraper import Scraper
@@ -79,18 +83,18 @@ def load_schedule(cur, batch: list[Event]) -> None:
 
 
 def main():
-    start = time.time()
+    start = time.perf_counter()
     html = extract_schedule()
     schedule = transform_schedule(html)
 
-    with sqlite3.connect("database.db") as conn:
+    with sqlite3.connect("./database/database.db") as conn:
         cur = conn.cursor()
         batch = [event for event in schedule]
         load_schedule(cur, batch)
         conn.commit()
-    end = time.time()
-    runtime = "{:.4f}".format(end - start)
 
+    end = time.perf_counter()
+    runtime = "{:.4f}".format(end - start)
     logging.info(f"Runtime: {runtime} s")
 
 
