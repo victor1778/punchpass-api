@@ -10,7 +10,7 @@ from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
 from models import Event, User
-from utils import Utils
+from dependencies import Utils
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -166,8 +166,7 @@ class Scraper:
     def fetch_punchpass_user_data(self, email: str) -> User | None:
         url = f"https://app.punchpass.com/a/customers.json?columns[3][data]=email&columns[3][searchable]=true&columns[3][orderable]=true&columns[3][search][value]={email}&start=0&length=1"
         try:
-            response = self.get_page(url)
-            response.raise_for_status()
+            response = self.get_page(url)       
             data = Utils.parse_user_data(response.json())
             if not data:
                 return None

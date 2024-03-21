@@ -2,7 +2,7 @@ import logging
 import re
 import sqlite3
 from datetime import datetime
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 import pytz
 
@@ -16,10 +16,9 @@ class Utils:
     @staticmethod
     def fetch_events_for_today() -> list[dict] | None:
         """Fetches schedule items from the database that have the start date or end date as today."""
-        today_date = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         logging.info(f"Fetching today's events from the database")
-
-        with sqlite3.connect("./database/database.db") as conn:
+        with sqlite3.connect("./db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM Event 
@@ -28,7 +27,7 @@ class Utils:
                     AND Title NOT LIKE "Private Session%"
                     ORDER BY StartDateTime ASC
                     """
-            cur.execute(query, (today_date,))
+            cur.execute(query, (today,))
             items = cur.fetchall()
 
         if not items:
@@ -52,12 +51,12 @@ class Utils:
 
     @staticmethod
     def fetch_schedule_item_by_id(
-        item_id, type: Optional[Literal[1]] = None
+        item_id: int, type: Optional[Literal[1]] = None
     ) -> dict | Event | None:
         """Fetches a single schedule item from the database matching the given ID."""
         logging.info(f"Fetching event from the database with ID: {item_id}")
 
-        with sqlite3.connect("./database/database.db") as conn:
+        with sqlite3.connect("./db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM Event 
@@ -82,14 +81,14 @@ class Utils:
                     return event.to_dict()
                 else:
                     return event
-            else:
-                return None
+            
+            return None
 
     def fetch_user_by_email(email: str) -> dict | None:
         """Fetches a single user from the database matching the given email."""
         logging.info(f"Fetching user from the database with email: {email}")
 
-        with sqlite3.connect("./database/database.db") as conn:
+        with sqlite3.connect("./db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM User 
@@ -107,14 +106,14 @@ class Utils:
                     email=item[4],
                 )
                 return user.to_dict()
-            else:
-                return None
+            
+            return None
 
     @staticmethod
     def load_user(user: User) -> None:
         """Inserts a single User into the database."""
         logging.info(f"Loading User {user.id} to database")
-        with sqlite3.connect("./database/database.db") as conn:
+        with sqlite3.connect("./db/database.db") as conn:
             cur = conn.cursor()
             try:
                 cur.execute(
@@ -133,20 +132,22 @@ class Utils:
                 logging.error(f"Error during insertion: {e}")
 
     @staticmethod
-    def format_cookies(cookie_dict, url) -> list[dict[str, str]]:
+    def format_cookies(cookie_dict: dict, url: str) -> list[dict[str, str]]:
         cookies_for_playwright = []
         for name, value in cookie_dict.items():
             cookie = {
-                "name": name,
-                "value": value,
+                "name": str(name),
+                "value": str(value),
                 "url": url,
             }
             cookies_for_playwright.append(cookie)
+
         return cookies_for_playwright
 
     @staticmethod
-    def parse_user_data(response: Dict) -> User | None:
+    def parse_user_data(response: dict) -> User | None:
         data_list = response.get("data")
+
         if not data_list:
             return None
 
@@ -162,7 +163,7 @@ class Utils:
     @staticmethod
     def format_time(
         time: str, tz_name: str = "America/New_York"
-    ) -> Optional[Dict[str, str]]:
+    ) -> dict[str, str] | None :
         try:
             dt = datetime.fromisoformat(time)
             tz = pytz.timezone(tz_name)
@@ -175,4 +176,5 @@ class Utils:
             }
         except ValueError:
             logging.error("Invalid time format")
-            return None
+        
+        return None

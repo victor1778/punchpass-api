@@ -36,7 +36,7 @@ def transform_schedule(html: str) -> Generator[Event, None, None]:
         yield scraper.parse_schedule_item(item, date)
 
 
-def load_schedule(cur, batch: list[Event]) -> None:
+def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
     """Inserts multiple events into the database."""
     logging.info(f"Loading {len(batch)} schedule items to database")
     values = []
@@ -81,13 +81,12 @@ def load_schedule(cur, batch: list[Event]) -> None:
     except Exception as e:
         logging.error(f"Error during bulk insertion: {e}")
 
-
-def main():
+if __name__ == "__main__":
     start = time.perf_counter()
     html = extract_schedule()
     schedule = transform_schedule(html)
 
-    with sqlite3.connect("./database/database.db") as conn:
+    with sqlite3.connect("./db/database.db") as conn:
         cur = conn.cursor()
         batch = [event for event in schedule]
         load_schedule(cur, batch)
@@ -96,7 +95,3 @@ def main():
     end = time.perf_counter()
     runtime = "{:.4f}".format(end - start)
     logging.info(f"Runtime: {runtime} s")
-
-
-if __name__ == "__main__":
-    main()
