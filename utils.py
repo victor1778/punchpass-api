@@ -111,7 +111,7 @@ class Utils:
                 return None
 
     @staticmethod
-    def load_user(cur, user: User) -> None:
+    def load_user(user: User) -> None:
         """Inserts a single User into the database."""
         logging.info(f"Loading User {user.id} to database")
         with sqlite3.connect("./database/database.db") as conn:
