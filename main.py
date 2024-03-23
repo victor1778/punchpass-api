@@ -1,22 +1,41 @@
-from fastapi import FastAPI, Query
-from typing import Annotated
-from mangum import Mangum
+from typing import Dict
+
+from fastapi import FastAPI, HTTPException
 
 from scraper import Scraper
-from user_data_fetcher import fetch_punchpass_user_data, extract_user_data
+from utils import Utils
 
 app = FastAPI()
-handler = Mangum(app)
 scraper = Scraper()
 
 
-@app.get("/")
+@app.get("/schedule/")
 async def read_schedule():
-    schedule = scraper.get_schedule()
-    return {"schedule": schedule}
+    scraper.get_schedule()
+    return {"schedule": scraper._get_schedule_store()}
 
-@app.post("/user/")
-async def read_user_email(email: str = Query(..., description="The email linked with Punchpass user account")):
-    response = fetch_punchpass_user_data(email, scraper.cookies_store)
-    data = extract_user_data(response)
-    return data[0]
+
+@app.get("/schedule/{id}")
+async def read_schedule_item(id: str):
+    if not scraper._get_schedule_stores:
+        scraper.get_schedule()
+
+    schedule_lookup = {item.id: item for item in scraper._get_schedule_store()}
+    item = schedule_lookup.get(id)
+
+    if item is not None:
+        return item.to_dict()
+    else:
+        raise HTTPException(
+            status_code=404, detail=f"Schedule item with ID {id} not found"
+        )
+
+
+@app.post("/users/fetch-data")
+async def read_user_email(request_data: Dict):
+    email = request_data.get("email")
+    if not email:
+        return {"error": "Email is required."}
+    response = scraper.fetch_punchpass_user_data(email)
+    data = Utils.parse_user_data(response)
+    return data

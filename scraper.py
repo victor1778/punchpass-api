@@ -4,47 +4,19 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Dict, Optional
 
-import pytz
 import requests
 from selectolax.parser import HTMLParser
 
 import creds
 from models import ScheduleItem
+from utils import CachedList, Utils
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-NY_TZ = pytz.timezone("America/New_York")
 INSTRUCTOR_REGEX = re.compile(r"with\s+(.+?)(?:\s*⋅\s*(.+))?$")
 END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
-
-
-def format_time(time: str) -> Optional[Dict[str, str]]:
-    """
-    Formats the given time string into a dictionary with date, dateTime, and timeZone keys.
-
-    Args:
-        time (str): The time string to be formatted.
-
-    Returns:
-        Dict[str, str]: A dictionary containing the formatted date, dateTime, and timeZone information.
-                        Returns None if the time format is invalid.
-    """
-    try:
-        dt = datetime.fromisoformat(time)
-        if dt.tzinfo is None:
-            dt = NY_TZ.localize(dt)
-        return {
-            "date": dt.date().isoformat(),
-            "dateTime": dt.isoformat(),
-            "timeZone": "America/New_York",
-        }
-    except ValueError:
-        logging.error("Invalid time format")
-        return None
 
 
 class Scraper:
@@ -52,11 +24,14 @@ class Scraper:
     cookies_store: Dict[str, str] = {}
 
     def __new__(cls) -> "Scraper":
+        logging.info("Creating Scraper instance")
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            logging.info("Scraper instance created")
         return cls._instance
 
     def __init__(self) -> None:
+        logging.info("Initializing Scraper")
         if not hasattr(self, "session"):
             self.session = requests.session()
             self.headers = {
@@ -72,12 +47,14 @@ class Scraper:
         Returns:
             str: The authentication token.
         """
+        logging.info("Getting authentication token.")
         r = self.get_page(f"{self.baseurl}/account/sign_in")
         if r and r.status_code == 200:
             html = HTMLParser(r.text)
             auth_token = html.css_first("form.simple_form.account input").attributes[
                 "value"
             ]
+            logging.info("Authentication token retrieved.")
             return auth_token
         logging.error("Failed to get authentication token.")
         return ""
@@ -86,6 +63,7 @@ class Scraper:
         """
         Loads cookies from the in-memory store.
         """
+        logging.info("Loading cookies.")
         if Scraper.cookies_store:
             try:
                 self.session.cookies.update(Scraper.cookies_store)
@@ -115,14 +93,12 @@ class Scraper:
                 "account[email]": creds.email,
                 "account[password]": creds.password,
             }
-
             self.session.post(f"{self.baseurl}/account/sign_in", data=payload)
             self.get_page(
                 f"{self.baseurl}/account/companies/12433/switch_to_admin_view"
             )
             self._save_cookies_to_store()
-
-    @lru_cache(maxsize=128)
+  
     def get_page(self, url: str) -> Optional[requests.Response]:
         """
         Fetches a page from the given URL.
@@ -141,6 +117,10 @@ class Scraper:
             logging.error(f"Failed to fetch page: {url}. Error: {e}")
             return None
 
+    @lru_cache(maxsize=128)
+    def _get_schedule_store(self) -> list[ScheduleItem]:
+        return CachedList()
+
     def get_schedule(self) -> list[ScheduleItem]:
         """
         Retrieves the schedule data.
@@ -153,7 +133,9 @@ class Scraper:
         """
         r = self.get_page(f"{self.baseurl}/hub")
         if r and r.status_code == 200:
-            return self.get_schedule_items(r.text)
+            schedule_items = self.get_schedule_items(r.text)
+            self._get_schedule_store().extend(schedule_items)
+            return self._get_schedule_store()
         raise Exception("Failed to retrieve schedule data")
 
     def parse_schedule_item(self, elem: HTMLParser, date: str) -> ScheduleItem:
@@ -169,7 +151,6 @@ class Scraper:
         """
         url = f"{self.baseurl}{elem.css_first('div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon').attrs['href']}"
         item_id = url.split("/")[-1]
-
         status = (
             "cancelled"
             if elem.css_first(
@@ -177,7 +158,6 @@ class Scraper:
             )
             else "confirmed"
         )
-
         title = (
             elem.css_first(
                 "div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon"
@@ -185,7 +165,6 @@ class Scraper:
             .text()
             .strip()
         )
-
         instructor_elem = (
             elem.css_first(
                 "div.cell.auto.small-order-2.medium-auto.medium-order-2 span.instance-instructor"
@@ -196,7 +175,6 @@ class Scraper:
         match = INSTRUCTOR_REGEX.search(instructor_elem)
         instructor = match.group(1)
         location = match.group(2) if match.group(2) else ""
-
         start_elem = (
             elem.css_first(
                 "div.cell.small-12.small-order-1.medium-2.medium-order-1.large-2"
@@ -205,10 +183,8 @@ class Scraper:
             .strip()
         )
         dt = datetime.strptime(f"{date} {start_elem}", "%B %d, %Y %I:%M %p")
-        start = format_time(dt.isoformat())
-
+        start = Utils.format_time(dt.isoformat())
         end = self.get_end_time(url)
-
         return ScheduleItem(
             item_id, status, url, title, location, instructor, start, end
         )
@@ -248,8 +224,18 @@ class Scraper:
             end_elem_str = END_ELEM_REGEX.sub(r"\1 \2", end_elem)
             try:
                 dt = datetime.strptime(end_elem_str, "%B %d, %Y %I:%M %p")
-                end = format_time(dt.isoformat())
+                end = Utils.format_time(dt.isoformat())
                 return end
             except ValueError:
                 logging.error("Failed to parse end time.")
         return None
+
+    def fetch_punchpass_user_data(self, email: str) -> Dict:
+        url = f"https://app.punchpass.com/a/customers.json?columns[3][data]=email&columns[3][searchable]=true&columns[3][orderable]=true&columns[3][search][value]={email}&start=0&length=1"
+        try:
+            response = self.get_page(url)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            return {"error": str(e)}
+        return data
