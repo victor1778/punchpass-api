@@ -18,7 +18,7 @@ async def read_schedule():
 
 
 @app.get("/schedule/{id}")
-async def read_event(id: str):
+async def read_event(id: int):
     schedule_item = Utils.fetch_schedule_item_by_id(id)
     if schedule_item is None:
         raise HTTPException(status_code=404, detail=f"Schedule item {id} not found.")
@@ -26,7 +26,7 @@ async def read_event(id: str):
 
 
 @app.post("/schedule/{id}/check_in")
-async def write_user_to_event(id: str, payload: Dict):
+async def write_user_to_event(id: int, payload: Dict):
     event_id = id
     name = payload.get("name")
 
@@ -37,7 +37,7 @@ async def write_user_to_event(id: str, payload: Dict):
     if not event:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not check in {name}. Schedule item {event_id} not found.",
+            detail=f"Could not check in {name}. Schedule item {str(event_id)} not found.",
         )
 
     try:
@@ -53,8 +53,8 @@ async def write_user_to_event(id: str, payload: Dict):
 
 @app.post("/schedule/check_in/bulk")
 async def write_user_to_event(payload: Dict):
-    event_ids = payload.get("event_ids")
-    name = payload.get("name")
+    event_ids: list[int] = payload.get("event_ids")
+    name: str = payload.get("name")
 
     # Validate input
     if not event_ids or not name:
@@ -94,7 +94,7 @@ async def write_user_to_event(payload: Dict):
         tasks = [scraper.user_check_in(*param) for param in params]
         await asyncio.gather(*tasks)
         return {
-            "detail": f"{name} checked in to {', '.join(event.id for event in events)}."
+            "detail": f"{name} checked in to {', '.join(str(event.id) for event in events)}."
         }
     except Exception as e:
         raise HTTPException(
