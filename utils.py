@@ -74,6 +74,18 @@ class CachedList(list):
 
 class Utils:
     @staticmethod
+    def format_cookies(cookie_dict, url) -> list[dict[str, str]]:
+        cookies_for_playwright = []
+        for name, value in cookie_dict.items():
+            cookie = {
+                "name": name,
+                "value": value,
+                "url": url,
+            }
+            cookies_for_playwright.append(cookie)
+        return cookies_for_playwright
+
+    @staticmethod
     def parse_user_data(response: Dict) -> User:
         data_list = response.get("data")
         data = data_list[0]
