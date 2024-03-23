@@ -76,10 +76,9 @@ def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
             """,
             values,
         )
-    except sqlite3.IntegrityError:
-        logging.error(f"Duplicate entries found. Skipping insertion for duplicates.")
     except Exception as e:
         logging.error(f"Error during bulk insertion: {e}")
+
 
 if __name__ == "__main__":
     start = time.perf_counter()

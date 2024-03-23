@@ -2,15 +2,15 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 import httpx
 from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
-from models import Event, User
 from dependencies import Utils
+from models import CheckIn, Event, User
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -111,7 +111,7 @@ class Scraper:
         placeholder = elem.css_first(
             "div.cell.small-12.small-order-4.medium-shrink.medium-order-3 span"
         )
-        
+
         if placeholder is None:
             status = "confirmed"
         else:
@@ -166,7 +166,7 @@ class Scraper:
     def fetch_punchpass_user_data(self, email: str) -> User | None:
         url = f"https://app.punchpass.com/a/customers.json?columns[3][data]=email&columns[3][searchable]=true&columns[3][orderable]=true&columns[3][search][value]={email}&start=0&length=1"
         try:
-            response = self.get_page(url)       
+            response = self.get_page(url)
             data = Utils.parse_user_data(response.json())
             if not data:
                 return None
@@ -175,12 +175,27 @@ class Scraper:
         finally:
             return data
 
-    async def user_check_in(self, name: str, url: str) -> None:
+    async def user_check_in(self, user: User, event: Event, check_in: CheckIn) -> None:
+        """
+        Performs the check-in process for a user at an event.
+
+        Args:
+          user (User): The user object representing the user checking in.
+          event (Event): The event object representing the event where the check-in is performed.
+          check_in (CheckIn): The check-in object to be updated with the check-in status.
+
+        Returns:
+          None
+        """
         start = time.perf_counter()
+        name = f"{user.first_name} {user.last_name}"
+
         async with async_playwright() as p:
             browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
             try:
-                logging.info(f"Connected to Scraping Browser. Navigating to {url}...")
+                logging.info(
+                    f"Connected to Scraping Browser. Navigating to {event.url}..."
+                )
                 context = await browser.new_context()
                 await context.add_cookies(
                     Utils.format_cookies(self.cookies_store, self.baseurl)
@@ -208,7 +223,7 @@ class Scraper:
                         else route.continue_()
                     ),
                 )
-                await page.goto(f"{url}/attendances/new")
+                await page.goto(f"{event.url}/attendances/new")
                 customer_list = page.get_by_title("{{2*2}} lkslsk")
                 await customer_list.wait_for(state="attached")
                 input = page.get_by_placeholder("Search")
@@ -217,9 +232,14 @@ class Scraper:
                 await user_btn.wait_for(state="attached")
                 await user_btn.click()
             except Exception as e:
+                check_in.status = "failed"
+                check_in.updated_at = datetime.now(timezone.utc).isoformat()
+                Utils.load_check_in(check_in)
                 logging.error(f"Error checking in {name}: {e}")
-                return None
             finally:
+                check_in.status = "confirmed"
+                check_in.updated_at = datetime.now(timezone.utc).isoformat()
+                Utils.load_check_in(check_in)
                 await browser.close()
-        runtime = "{:.4f}".format(time.perf_counter() - start)
-        logging.info(f"Request completed in {runtime} s")
+                runtime = "{:.4f}".format(time.perf_counter() - start)
+                logging.info(f"Request completed in {runtime} s")

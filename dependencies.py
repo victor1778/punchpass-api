@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 import pytz
 
-from models import Event, User
+from models import CheckIn, Event, User
 
 NY_TZ = pytz.timezone("America/New_York")
 NAME_REGEX = re.compile(r"<[^>]+>")
@@ -81,9 +81,10 @@ class Utils:
                     return event.to_dict()
                 else:
                     return event
-            
+
             return None
 
+    @staticmethod
     def fetch_user_by_email(email: str) -> dict | None:
         """Fetches a single user from the database matching the given email."""
         logging.info(f"Fetching user from the database with email: {email}")
@@ -106,7 +107,63 @@ class Utils:
                     email=item[4],
                 )
                 return user.to_dict()
-            
+
+            return None
+
+    @staticmethod
+    def fetch_user_by_name(first_name: str, last_name: str) -> User | None:
+        """Fetches a single user from the database matching the given name."""
+        logging.info(
+            f"Fetching user from the database with name: {first_name} {last_name}"
+        )
+
+        with sqlite3.connect("./db/database.db") as conn:
+            cur = conn.cursor()
+            query = """
+                    SELECT * FROM User 
+                    WHERE FirstName = ?
+                    AND LastName = ?
+                    """
+            cur.execute(query, (first_name, last_name))
+            item = cur.fetchone()
+
+            if item:
+                user = User(
+                    id=item[0],
+                    first_name=item[1],
+                    last_name=item[2],
+                    phone=item[3],
+                    email=item[4],
+                )
+                return user
+
+            return None
+
+    @staticmethod
+    def fetch_check_in(id: str) -> CheckIn | None:
+        """Fetches a single user from the database matching the given name."""
+        logging.info(f"Fetching Check In from the database with id: {id}")
+
+        with sqlite3.connect("./db/database.db") as conn:
+            cur = conn.cursor()
+            query = """
+                    SELECT * FROM CheckIn 
+                    WHERE CheckInId = ?
+                    """
+            cur.execute(query, (id,))
+            item = cur.fetchone()
+
+            if item:
+                check_in = CheckIn(
+                    id=item[0],
+                    event_id=item[1],
+                    user_id=item[2],
+                    status=item[3],
+                    created_at=item[4],
+                    updated_at=item[5],
+                )
+                return check_in
+
             return None
 
     @staticmethod
@@ -128,6 +185,34 @@ class Utils:
                 logging.error(
                     "Duplicate entry found. Skipping insertion for duplicate."
                 )
+            except Exception as e:
+                logging.error(f"Error during insertion: {e}")
+
+    @staticmethod
+    def load_check_in(check_in: CheckIn) -> None:
+        """Inserts a Check In receipt into the database."""
+        logging.info(f"Loading Check In {check_in.id} to database")
+        with sqlite3.connect("./db/database.db") as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO CheckIn
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(CheckInID) DO UPDATE SET
+                        Status=excluded.Status,
+                        UpdatedAt=excluded.UpdatedAt
+                    """,
+                    (
+                        check_in.id,
+                        check_in.event_id,
+                        check_in.user_id,
+                        check_in.status,
+                        check_in.created_at,
+                        check_in.updated_at,
+                    ),
+                )
+                conn.commit()
             except Exception as e:
                 logging.error(f"Error during insertion: {e}")
 
@@ -163,7 +248,7 @@ class Utils:
     @staticmethod
     def format_time(
         time: str, tz_name: str = "America/New_York"
-    ) -> dict[str, str] | None :
+    ) -> dict[str, str] | None:
         try:
             dt = datetime.fromisoformat(time)
             tz = pytz.timezone(tz_name)
@@ -176,5 +261,5 @@ class Utils:
             }
         except ValueError:
             logging.error("Invalid time format")
-        
+
         return None

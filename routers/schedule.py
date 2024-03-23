@@ -1,13 +1,14 @@
 import asyncio
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Path, Request
 
 from dependencies import Utils
+from models import CheckIn
 
 router = APIRouter(prefix="/schedule")
-tasks = {}
 
 
 @router.get("/", status_code=200)
@@ -39,50 +40,81 @@ async def write_user_to_event(
     request: Request,
 ) -> dict[str, str]:
     event_id = id
-    name = payload.get("name")
+    first_name = payload.get("first_name")
+    last_name = payload.get("last_name")
 
-    if not name:
-        return {"detail": "Name is required."}
+    if not first_name or not last_name:
+        return HTTPException(
+            status_code=400,
+            detail="First and last name required for operation.",
+        )
+
+    user = Utils.fetch_user_by_name(first_name, last_name)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User {first_name} {last_name} not found.",
+        )
 
     event = Utils.fetch_schedule_item_by_id(event_id, 1)
     if not event:
         raise HTTPException(
             status_code=404,
-            detail=f"Could not check in {name}. Schedule item {str(event_id)} not found.",
+            detail=f"Could not check in {user.first_name} {user.last_name}. Schedule item {str(event_id)} not found.",
         )
 
-    # Create a task and store it
+    name = f"{user.first_name} {user.last_name}"
+
+    check_in = CheckIn(
+        id=str(uuid.uuid4()),
+        event_id=event.id,
+        user_id=user.id,
+        status="pending",
+        created_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+    Utils.load_check_in(check_in)
+
     try:
-        task = asyncio.create_task(
-            request.app.state.scraper.user_check_in(name, event.url)
+        asyncio.create_task(
+            request.app.state.scraper.user_check_in(user, event, check_in)
         )
-        task_id = str(uuid.uuid4())
-        tasks[task_id] = task
         return {
-            "detail": f"Check-in request for {name} accepted",
-            "task_id": task_id,
-            "location": f"{request.url.scheme}://{request.url.hostname}/tasks/{task_id}",
+            "detail": f"Check in request for {name} accepted",
+            "id": check_in.id,
+            "status": check_in.status,
+            "location": f"{request.url.scheme}://{request.url.hostname}/check_in/status/{check_in.id}",
         }
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Could not check in {name}. Error: {str(e)}",
+            detail=f"Could not check in {name}. Error: {e}",
         )
 
 
 @router.post("/check_in/bulk", status_code=202)
-async def write_user_to_event(
+async def write_user_to_many_events(
     payload: Annotated[dict, Body(embed=True)],
     request: Request,
 ) -> dict[str, str]:
     event_ids = payload.get("event_ids")
-    name = payload.get("name")
+    first_name = payload.get("first_name")
+    last_name = payload.get("last_name")
 
     # Validate input
-    if not event_ids or not name:
+    if not event_ids or not first_name or not last_name:
         raise HTTPException(
             status_code=400,
-            detail=f"Event IDs and Name required for bulk operation.",
+            detail=f"Event IDs, first name, and last name required for operation.",
+        )
+
+    # Fetch user
+    user = Utils.fetch_user_by_name(first_name, last_name)
+    name = f"{first_name} {last_name}"
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User {name} not found.",
         )
 
     # Fetch events
@@ -97,24 +129,34 @@ async def write_user_to_event(
         events.append(event)
 
     # Prepare parameters for check-in
-    params = [(name, event.url) for event in events]
+    task_ids = []
+    params = []
+    for i in range(len(events)):
+        check_in = CheckIn(
+            id=str(uuid.uuid4()),
+            event_id=events[i].id,
+            user_id=user.id,
+            status="pending",
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        Utils.load_check_in(check_in)
+        task_ids.append(check_in.id)
+        params.append((user, events[i], check_in))
 
     try:
-        task_ids = []
         for param in params:
-            task = asyncio.create_task(request.app.state.scraper.user_check_in(*param))
-            task_id = str(uuid.uuid4())
-            tasks[task_id] = task
-            task_ids.append(task_id)
+            asyncio.create_task(request.app.state.scraper.user_check_in(*param))
 
-        host_url = f"{request.url.scheme}://{request.url.hostname}"
         event_ids = ", ".join(str(event.id) for event in events)
-        task_urls = [f"{host_url}/tasks/{task_id}" for task_id in task_ids]
-        
+        task_urls = [
+            f"{request.url.scheme}://{request.url.hostname}/check_in/status/{task_id}"
+            for task_id in task_ids
+        ]
 
         return {
-            "detail": f"Check-in request for {name} to {event_ids} accepted",
-            "task_ids": ", ".join(task_ids),
+            "detail": f"Check in request for {name} to {event_ids} accepted",
+            "ids": ", ".join(task_ids),
             "locations": ", ".join(task_urls),
         }
     except Exception as e:
@@ -124,21 +166,19 @@ async def write_user_to_event(
         )
 
 
-@router.get("/check_in/status/")
-async def get_task_status(task_id: str) -> dict[str, str]:
-    task = tasks.get(task_id)
-    print(tasks)
-    if not task:
-        raise HTTPException(status_code=204, detail=f"Task {task_id} not found")
+@router.get("/check_in/status/{id}")
+async def get_check_in_status(
+    id: Annotated[str, Path(title="The ID of the Check In to get")]
+) -> dict[str, str]:
+    check_in = Utils.fetch_check_in(id)
+    if not check_in:
+        raise HTTPException(status_code=204, detail=f"Task {id} not found")
 
-    if task.done():
-        try:
-            task.result()  # Re-raise any exceptions from the task
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error:{str(e)}")
-        else:
-            raise HTTPException(
-                status_code=200, detail=f"Task {task_id} completed succesfully"
-            )
+    if check_in.status == "confirmed":
+        raise HTTPException(status_code=200, detail=f"Task {id} completed succesfully")
+    elif check_in.status == "failed":
+        raise HTTPException(
+            status_code=500, detail=f"Task {id} failed to check in user"
+        )
     else:
-        raise HTTPException(status_code=302, detail=f"Task {task_id} is still running")
+        raise HTTPException(status_code=302, detail=f"Task {id} is still running")
