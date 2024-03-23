@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Path
+from fastapi import FastAPI, Query
 from typing import Annotated
 from mangum import Mangum
 
@@ -15,8 +15,8 @@ async def read_schedule():
     schedule = scraper.get_schedule()
     return {"schedule": schedule}
 
-@app.post("/user/{email}")
-async def read_schedule(email: Annotated[str, Path(title="The email of Punchpass user to get")]):
+@app.post("/user/")
+async def read_user_email(email: str = Query(..., description="The email linked with Punchpass user account")):
     response = fetch_punchpass_user_data(email, scraper.cookies_store)
     data = extract_user_data(response)
-    return {"user": data}
+    return data
