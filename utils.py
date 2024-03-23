@@ -19,21 +19,21 @@ class Utils:
         today_date = datetime.now().strftime("%Y-%m-%d")
         logging.info(f"Fetching today's events from the database")
 
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect("./database/database.db") as conn:
             cur = conn.cursor()
             query = """
-        SELECT * FROM Event 
-        WHERE date(StartDate) = ?
-        AND Title NOT LIKE "Sensual Move%"
-        AND Title NOT LIKE "Private Session%"
-        ORDER BY StartDateTime ASC
-        """
+                    SELECT * FROM Event 
+                    WHERE date(StartDate) = ?
+                    AND Title NOT LIKE "Sensual Move%"
+                    AND Title NOT LIKE "Private Session%"
+                    ORDER BY StartDateTime ASC
+                    """
             cur.execute(query, (today_date,))
             items = cur.fetchall()
 
         if not items:
             return None
-        
+
         schedule = []
         for item in items:
             event = Event(
@@ -57,12 +57,12 @@ class Utils:
         """Fetches a single schedule item from the database matching the given ID."""
         logging.info(f"Fetching event from the database with ID: {item_id}")
 
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect("./database/database.db") as conn:
             cur = conn.cursor()
             query = """
-          SELECT * FROM Event 
-          WHERE EventID = ?
-          """
+                    SELECT * FROM Event 
+                    WHERE EventID = ?
+                    """
             cur.execute(query, (item_id,))
             item = cur.fetchone()
 
@@ -89,12 +89,12 @@ class Utils:
         """Fetches a single user from the database matching the given email."""
         logging.info(f"Fetching user from the database with email: {email}")
 
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect("./database/database.db") as conn:
             cur = conn.cursor()
             query = """
-        SELECT * FROM User 
-        WHERE Email = ?
-        """
+                    SELECT * FROM User 
+                    WHERE Email = ?
+                    """
             cur.execute(query, (email,))
             item = cur.fetchone()
 
@@ -114,19 +114,23 @@ class Utils:
     def load_user(cur, user: User) -> None:
         """Inserts a single User into the database."""
         logging.info(f"Loading User {user.id} to database")
-
-        try:
-            cur.execute(
-                """
-            INSERT INTO User
-            VALUES (?, ?, ?, ?, ?)
-            """,
-                (user.id, user.first_name, user.last_name, user.phone, user.email),
-            )
-        except sqlite3.IntegrityError:
-            logging.error("Duplicate entry found. Skipping insertion for duplicate.")
-        except Exception as e:
-            logging.error(f"Error during insertion: {e}")
+        with sqlite3.connect("./database/database.db") as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO User
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (user.id, user.first_name, user.last_name, user.phone, user.email),
+                )
+                conn.commit()
+            except sqlite3.IntegrityError:
+                logging.error(
+                    "Duplicate entry found. Skipping insertion for duplicate."
+                )
+            except Exception as e:
+                logging.error(f"Error during insertion: {e}")
 
     @staticmethod
     def format_cookies(cookie_dict, url) -> list[dict[str, str]]:
