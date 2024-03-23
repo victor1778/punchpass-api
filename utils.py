@@ -14,7 +14,7 @@ NAME_REGEX = re.compile(r"<[^>]+>")
 
 class Utils:
     @staticmethod
-    def fetch_events_for_today():
+    def fetch_events_for_today() -> list[dict] | None:
         """Fetches schedule items from the database that have the start date or end date as today."""
         today_date = datetime.now().strftime("%Y-%m-%d")
         logging.info(f"Fetching today's events from the database")
@@ -24,11 +24,16 @@ class Utils:
             query = """
         SELECT * FROM Event 
         WHERE date(StartDate) = ?
+        AND Title NOT LIKE "Sensual Move%"
+        AND Title NOT LIKE "Private Session%"
         ORDER BY StartDateTime ASC
         """
             cur.execute(query, (today_date,))
             items = cur.fetchall()
 
+        if not items:
+            return None
+        
         schedule = []
         for item in items:
             event = Event(

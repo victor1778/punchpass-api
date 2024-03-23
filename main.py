@@ -14,6 +14,12 @@ scraper = Scraper()
 @app.get("/schedule")
 async def read_schedule():
     schedule = Utils.fetch_events_for_today()
+
+    if not schedule:
+        raise HTTPException(
+            status_code=404, detail="No schedule items found for today."
+        )
+
     return {"schedule": schedule}
 
 
@@ -105,13 +111,13 @@ async def write_user_to_event(payload: Dict):
 
 @app.post("/user")
 async def read_user(payload: Dict):
+    # TODO: Add validation for email (r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
     email = payload.get("email")
     if not email:
         raise HTTPException(
             status_code=400,
             detail=f"Email required for operation.",
         )
-
     user = Utils.fetch_user_by_email(email)
     if user is None:
         data = scraper.fetch_punchpass_user_data(email)

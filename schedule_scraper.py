@@ -1,37 +1,15 @@
 import logging
 import sqlite3
 import time
+from typing import Generator
 
 from selectolax.parser import HTMLParser
 
 from models import Event
 from scraper import Scraper
 
-import os
-from datetime import datetime
-
-def setup_logging():
-    """Sets up logging to file and console."""
-    logs_dir = "logs"
-    if not os.path.exists(logs_dir):
-        os.makedirs(logs_dir)
-
-    log_filename = os.path.join(logs_dir, f"scraper_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler(log_filename),
-            logging.StreamHandler()
-        ]
-    )
-
-# Configure logging as the first action
-setup_logging()
-logging.info("Logging is configured.")
-
 scraper = Scraper()
+
 
 def extract_schedule() -> str:
     """Fetches and returns HTML content from the given URL."""
@@ -41,23 +19,24 @@ def extract_schedule() -> str:
     return html
 
 
-def transform_schedule(html: str) -> list[Event]:
+def transform_schedule(html: str) -> Generator[Event, None, None]:
     """Parses HTML to extract and transform schedule information into Event objects."""
-    logging.info("Parsing HTML to extract schedule items")
+    logging.info(f"Parsing HTML to extract schedule items")
     content = HTMLParser(html)
-    raw_schedule_items = content.css_first("div.instances-for-day").css("div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
+    raw_schedule_items = content.css_first("div.instances-for-day").css(
+        "div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
     )
     date = content.css_first("div.instances-for-day").attrs["data-day"]
-    return [
-        scraper.parse_schedule_item(item, date) for item in raw_schedule_items
-    ]
+
+    for item in raw_schedule_items:
+        yield scraper.parse_schedule_item(item, date)
 
 
-def load_schedule(cur, items: list[Event]) -> None:
+def load_schedule(cur, batch: list[Event]) -> None:
     """Inserts multiple events into the database."""
-    logging.info(f"Loading {len(items)} schedule items to database")
+    logging.info(f"Loading {len(batch)} schedule items to database")
     values = []
-    for item in items:
+    for item in batch:
         values.append(
             (
                 item.id,
@@ -94,7 +73,7 @@ def load_schedule(cur, items: list[Event]) -> None:
             values,
         )
     except sqlite3.IntegrityError:
-        logging.error("Duplicate entries found. Skipping insertion for duplicates.")
+        logging.error(f"Duplicate entries found. Skipping insertion for duplicates.")
     except Exception as e:
         logging.error(f"Error during bulk insertion: {e}")
 
@@ -106,10 +85,11 @@ def main():
 
     with sqlite3.connect("database.db") as conn:
         cur = conn.cursor()
-        load_schedule(cur, schedule)
+        batch = [event for event in schedule]
+        load_schedule(cur, batch)
         conn.commit()
     end = time.time()
-    runtime = '{:.4f}'.format(end - start)
+    runtime = "{:.4f}".format(end - start)
 
     logging.info(f"Runtime: {runtime} s")
 
