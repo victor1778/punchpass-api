@@ -1,3 +1,5 @@
+import asyncio
+import sqlite3
 from typing import Dict
 
 from fastapi import FastAPI, HTTPException
@@ -11,43 +13,117 @@ scraper = Scraper()
 
 @app.get("/schedule")
 async def read_schedule():
-    scraper.get_schedule()
-    return {"schedule": scraper._get_schedule_store()}
+    schedule = Utils.fetch_events_for_today()
+    return {"schedule": schedule}
 
 
 @app.get("/schedule/{id}")
-async def read_schedule_item(id: str):
-    if not scraper._get_schedule_store():
-        scraper.get_schedule()
+async def read_event(id: str):
+    schedule_item = Utils.fetch_schedule_item_by_id(id)
+    if schedule_item is None:
+        raise HTTPException(status_code=404, detail=f"Schedule item {id} not found.")
+    return schedule_item
 
-    schedule_lookup = {item.id: item for item in scraper._get_schedule_store()}
-    item = schedule_lookup.get(id)
-
-    if item is not None:
-        return item.to_dict()
-    else:
-        raise HTTPException(
-            status_code=404, detail=f"Schedule item with ID {id} not found"
-        )
 
 @app.post("/schedule/{id}/check_in")
-async def read_user_name(id: str, request_data: Dict):
-    if not scraper._get_schedule_store():
-        scraper.get_schedule()
+async def write_user_to_event(id: str, payload: Dict):
+    event_id = id
+    name = payload.get("name")
 
-    schedule_lookup = {item.id: item for item in scraper._get_schedule_store()}
-    item = schedule_lookup.get(id)
-    name = request_data.get("name")
     if not name:
-        return {"error": "Full name is required."}
-    await scraper.user_check_in(name, item.url)
-    return {"success" : "!!!"}
+        return {"detail": "Name is required."}
 
-@app.post("/users/fetch-data")
-async def read_user_email(request_data: Dict):
-    email = request_data.get("email")
+    event = Utils.fetch_schedule_item_by_id(event_id, 1)
+    if not event:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Could not check in {name}. Schedule item {event_id} not found.",
+        )
+
+    try:
+        await scraper.user_check_in(name, event.url)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not check in {name}. Error: {str(e)}",
+        )
+    finally:
+        return {"detail": f"{name} checked in to {event.title}."}
+
+
+@app.post("/schedule/check_in/bulk")
+async def write_user_to_event(payload: Dict):
+    event_ids = payload.get("event_ids")
+    name = payload.get("name")
+
+    # Validate input
+    if not event_ids or not name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Event IDs and Name required for bulk operation.",
+        )
+
+    if not event_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"At least one Event ID required for bulk operation.",
+        )
+
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Name requirer for bulk operation.",
+        )
+
+    # Fetch events
+    events = []
+    for event_id in event_ids:
+        event = Utils.fetch_schedule_item_by_id(event_id, 1)
+        if not event:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not check in {name}. Error: {str(e)}",
+            )
+        events.append(event)
+
+    # Prepare parameters for check-in
+    params = [(name, event.url) for event in events]
+
+    try:
+        # Check-in user to events
+        tasks = [scraper.user_check_in(*param) for param in params]
+        await asyncio.gather(*tasks)
+        return {
+            "detail": f"{name} checked in to {', '.join(event.id for event in events)}."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not check in {name}. Error: {str(e)}",
+        )
+
+
+@app.post("/user")
+async def read_user(payload: Dict):
+    email = payload.get("email")
     if not email:
-        return {"error": "Email is required."}
-    response = scraper.fetch_punchpass_user_data(email)
-    data = Utils.parse_user_data(response)
-    return data
+        raise HTTPException(
+            status_code=400,
+            detail=f"Email required for operation.",
+        )
+
+    user = Utils.fetch_user_by_email(email)
+    if user is None:
+        data = scraper.fetch_punchpass_user_data(email)
+        if data is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User with email {email} not found.",
+            )
+        with sqlite3.connect("database.db") as conn:
+            cur = conn.cursor()
+            Utils.load_user(cur, data)
+            conn.commit()
+        return data.to_dict()
+    else:
+        return user

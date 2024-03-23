@@ -1,9 +1,10 @@
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 
 
 @dataclass
-class ScheduleItem:
-    id: str = None
+class Event:
+    id: int = None
     status: str = None
     url: str = None
     title: str = None
@@ -11,18 +12,7 @@ class ScheduleItem:
     instructor: str = None
     start: dict[str, str] = None
     end: dict[str, str] = None
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-
-@dataclass
-class User:
-    id: str = None
-    first_name: str = None
-    last_name: str = None
-    phone: str = None
-    email: str = None
+    timestamp: str = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> dict:
         return asdict(self)
