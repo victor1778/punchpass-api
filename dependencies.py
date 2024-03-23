@@ -6,11 +6,7 @@ from typing import Literal, Optional
 
 import pytz
 
-<<<<<<< HEAD
 from models import CheckIn, Event, User
-=======
-from models import Event, User
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
 
 NY_TZ = pytz.timezone("America/New_York")
 NAME_REGEX = re.compile(r"<[^>]+>")
@@ -85,16 +81,10 @@ class Utils:
                     return event.to_dict()
                 else:
                     return event
-<<<<<<< HEAD
 
             return None
 
     @staticmethod
-=======
-            
-            return None
-
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
     def fetch_user_by_email(email: str) -> dict | None:
         """Fetches a single user from the database matching the given email."""
         logging.info(f"Fetching user from the database with email: {email}")
@@ -117,7 +107,6 @@ class Utils:
                     email=item[4],
                 )
                 return user.to_dict()
-<<<<<<< HEAD
 
             return None
 
@@ -175,9 +164,6 @@ class Utils:
                 )
                 return check_in
 
-=======
-            
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
             return None
 
     @staticmethod
@@ -203,7 +189,6 @@ class Utils:
                 logging.error(f"Error during insertion: {e}")
 
     @staticmethod
-<<<<<<< HEAD
     def load_check_in(check_in: CheckIn) -> None:
         """Inserts a Check In receipt into the database."""
         logging.info(f"Loading Check In {check_in.id} to database")
@@ -232,8 +217,6 @@ class Utils:
                 logging.error(f"Error during insertion: {e}")
 
     @staticmethod
-=======
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
     def format_cookies(cookie_dict: dict, url: str) -> list[dict[str, str]]:
         cookies_for_playwright = []
         for name, value in cookie_dict.items():
@@ -265,11 +248,7 @@ class Utils:
     @staticmethod
     def format_time(
         time: str, tz_name: str = "America/New_York"
-<<<<<<< HEAD
     ) -> dict[str, str] | None:
-=======
-    ) -> dict[str, str] | None :
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
         try:
             dt = datetime.fromisoformat(time)
             tz = pytz.timezone(tz_name)
@@ -282,9 +261,4 @@ class Utils:
             }
         except ValueError:
             logging.error("Invalid time format")
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
         return None
