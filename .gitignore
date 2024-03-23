@@ -161,3 +161,4 @@ cython_debug/
 
 init_db.py
 start_punchpass-api.txt
+.DS_Store
