@@ -11,9 +11,13 @@ EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
 
 @router.post("/", status_code=201)
+<<<<<<< HEAD
 async def read_user(
     payload: Annotated[dict, Body(embed=True)], request: Request
 ) -> dict:
+=======
+async def read_user(payload: Annotated[dict, Body(embed=True)], request: Request) -> dict:
+>>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
     email = payload.get("email")
     if not email:
         raise HTTPException(

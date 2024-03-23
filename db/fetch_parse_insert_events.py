@@ -76,10 +76,18 @@ def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
             """,
             values,
         )
+<<<<<<< HEAD
     except Exception as e:
         logging.error(f"Error during bulk insertion: {e}")
 
 
+=======
+    except sqlite3.IntegrityError:
+        logging.error(f"Duplicate entries found. Skipping insertion for duplicates.")
+    except Exception as e:
+        logging.error(f"Error during bulk insertion: {e}")
+
+>>>>>>> e58b33aa672f8dc0c0818c395dce657971d4cd55
 if __name__ == "__main__":
     start = time.perf_counter()
     html = extract_schedule()
