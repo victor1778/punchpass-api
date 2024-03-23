@@ -1,0 +1,4 @@
+#dir
+.venv/
+.pytest_cache/
+.pycache/

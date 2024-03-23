@@ -1,4 +1,6 @@
 import logging
+import os
+import pickle
 import re
 from datetime import datetime
 
@@ -16,11 +18,24 @@ logging.basicConfig(
 )
 
 
-def format_time(time) -> dict[str, str]:
-    logging.info("Running format_start() function")
-    dt = datetime.fromisoformat(time)
+def format_time(time: str) -> dict[str, str]:
+    logging.info("Running format_time() function")
+
+    # Create a timezone object for New York
     nyc_tz = pytz.timezone("America/New_York")
-    dt = dt.astimezone(nyc_tz)
+
+    # Parse the input time string into a datetime object
+    # If the time string already includes timezone information, fromisoformat will preserve it
+    # If not, we explicitly localize the datetime object to the New York timezone
+    try:
+        dt = datetime.fromisoformat(time)
+        if dt.tzinfo is None:  # Timezone information is missing
+            dt = nyc_tz.localize(dt)
+    except ValueError:
+        # Handle cases where the input time format is incorrect
+        logging.error("Invalid time format")
+        return {}
+
     return {
         "date": dt.date().isoformat(),
         "dateTime": dt.isoformat(),
@@ -29,14 +44,22 @@ def format_time(time) -> dict[str, str]:
 
 
 class Scraper:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            logging.info("Creating Scraper instance")
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self) -> None:
-        logging.info("Creating Scraper instance")
-        self.session = requests.session()
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        }
-        self.baseurl = "https://app.punchpass.com"
-        self._login()
+        if not hasattr(self, "session"):
+            self.session = requests.session()
+            self.headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            }
+            self.baseurl = "https://app.punchpass.com"
+            self._login()
 
     def _get_auth_token(self) -> str:
         logging.info("Running _get_auth_token() function")
@@ -54,17 +77,36 @@ class Scraper:
         return ""
 
     def _login(self) -> None:
-        logging.info("Running _login() function")
-        auth_token = self._get_auth_token()
+        logging.info("Running login() function")
 
-        payload = {
-            "authenticity_token": auth_token,
-            "account[email]": creds.email,
-            "account[password]": creds.password,
-        }
+        # Check if session_cookies.pkl exists
+        if os.path.isfile("session_cookies.pkl"):
+            try:
+                with open("session_cookies.pkl", "rb") as f:
+                    cookies = pickle.load(f)
 
-        self.session.post(self.baseurl + "/account/sign_in", data=payload)
-        self.get_page(self.baseurl + "/account/companies/12433/switch_to_admin_view")
+                self.session.cookies.update(cookies)
+
+                logging.info("Loaded cookies from session_cookies.pkl")
+            except Exception as e:
+                logging.error(f"Failed to load cookies: {e}")
+        else:
+            auth_token = self._get_auth_token()
+
+            payload = {
+                "authenticity_token": auth_token,
+                "account[email]": creds.email,
+                "account[password]": creds.password,
+            }
+
+            r = self.session.post(self.baseurl + "/account/sign_in", data=payload)
+            self.get_page(
+                self.baseurl + "/account/companies/12433/switch_to_admin_view"
+            )
+
+            with open("session_cookies.pkl", "wb") as f:
+                pickle.dump(self.session.cookies.get_dict(), f)
+                logging.info("Saved cookies to session_cookies.pkl")
 
     def get_page(self, url) -> requests.Response:
         logging.info("Running get_page(params) function")
