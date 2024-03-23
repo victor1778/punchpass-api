@@ -1,0 +1,3 @@
+([('fetch_pending_reservations',
+   '/Users/vrfvega/Developer/Empire Scripts/dist/fetch_pending_reservations',
+   'EXECUTABLE')],)
