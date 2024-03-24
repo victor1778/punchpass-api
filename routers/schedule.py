@@ -36,7 +36,7 @@ async def read_event(
 @router.post("/{id}/check_in", status_code=202)
 async def write_user_to_event(
     id: Annotated[int, Path(title="The ID of the event to get")],
-    payload: Annotated[dict, Body(embed=True)],
+    payload: Annotated[dict, "payload"],
     request: Request,
 ) -> dict[str, str]:
     event_id = id
@@ -94,7 +94,7 @@ async def write_user_to_event(
 
 @router.post("/check_in/bulk", status_code=202)
 async def write_user_to_many_events(
-    payload: Annotated[dict, Body(embed=True)],
+    payload: Annotated[dict, "payload"],
     request: Request,
 ) -> dict[str, str]:
     event_ids = payload.get("event_ids")
