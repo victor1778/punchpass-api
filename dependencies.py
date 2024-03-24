@@ -22,7 +22,7 @@ class Utils:
             cur = conn.cursor()
             query = """
                     SELECT * FROM Event 
-                    WHERE date(StartDate) = ?
+                    WHERE StartDate = ?
                     AND Title NOT LIKE "Sensual Move%"
                     AND Title NOT LIKE "Private Session%"
                     ORDER BY StartDateTime ASC
