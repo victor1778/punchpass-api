@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, Path, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 
 from dependencies import Utils
 from models import CheckIn
@@ -33,7 +33,7 @@ async def read_event(
     return event
 
 
-@router.post("/{id}/check_in", status_code=202)
+@router.post("/{id}/check-in", status_code=202)
 async def write_user_to_event(
     id: Annotated[int, Path(title="The ID of the event to get")],
     payload: Annotated[dict, "payload"],
@@ -83,7 +83,7 @@ async def write_user_to_event(
             "detail": f"Check in request for {name} accepted",
             "id": check_in.id,
             "status": check_in.status,
-            "location": f"{request.url.scheme}://{request.url.hostname}/check_in/status/{check_in.id}",
+            "location": f"{request.url.scheme}://18.220.119.66/schedule/check-in/status/{check_in.id}",
         }
     except Exception as e:
         raise HTTPException(
@@ -92,7 +92,7 @@ async def write_user_to_event(
         )
 
 
-@router.post("/check_in/bulk", status_code=202)
+@router.post("/check-in/bulk", status_code=202)
 async def write_user_to_many_events(
     payload: Annotated[dict, "payload"],
     request: Request,
@@ -150,7 +150,7 @@ async def write_user_to_many_events(
 
         event_ids = ", ".join(str(event.id) for event in events)
         task_urls = [
-            f"{request.url.scheme}://{request.url.hostname}/check_in/status/{task_id}"
+            f"{request.url.scheme}://18.220.119.66/schedule/check-in/status/{task_id}"
             for task_id in task_ids
         ]
 
@@ -166,19 +166,28 @@ async def write_user_to_many_events(
         )
 
 
-@router.get("/check_in/status/{id}")
+@router.get("/check-in/status/{id}")
 async def get_check_in_status(
     id: Annotated[str, Path(title="The ID of the Check In to get")]
 ) -> dict[str, str]:
     check_in = Utils.fetch_check_in(id)
     if not check_in:
         raise HTTPException(status_code=204, detail=f"Task {id} not found")
+    
+    response = {
+        "id": check_in.id,
+        "event_id": check_in.event_id,
+        "user_id": check_in.user_id,
+        "status": check_in.status,
+        "created_at": check_in.created_at,
+        "updated_at": check_in.updated_at,
+    }
 
     if check_in.status == "confirmed":
-        raise HTTPException(status_code=200, detail=f"Task {id} completed succesfully")
+        raise HTTPException(status_code=200, detail=response)
     elif check_in.status == "failed":
         raise HTTPException(
-            status_code=500, detail=f"Task {id} failed to check in user"
+            status_code=500, detail=response
         )
     else:
-        raise HTTPException(status_code=302, detail=f"Task {id} is still running")
+        raise HTTPException(status_code=302, detail=response)
