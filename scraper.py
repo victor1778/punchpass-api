@@ -190,11 +190,18 @@ class Scraper:
         name = f"{user.first_name} {user.last_name}"
 
         async with async_playwright() as p:
-            browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+            if __debug__:
+                browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+            else:
+                browser = await p.chromium.launch()
             try:
-                logging.info(
-                    f"Connected to Scraping Browser. Navigating to {event.url}..."
-                )
+                if __debug__:
+                    logging.info(
+                        f"Connected to Scraping Browser. Navigating to {event.url}..."
+                    )
+                else:
+                    logging.info(f"Launching browser. Navigating to {event.url}...")
+
                 context = await browser.new_context()
                 await context.add_cookies(
                     Utils.format_cookies(self.cookies_store, self.baseurl)
@@ -202,13 +209,15 @@ class Scraper:
                 page = await context.new_page()
                 client = await page.context.new_cdp_session(page)
 
-                await client.send(
-                    "Proxy.setLocation",
-                    {"lat": 30.2712, "lon": -97.7417, "distance": 50},
-                )  # Set location to Austin, TX
-                await client.send(
-                    "Captcha.setAutoSolve", {"autoSolve": False}
-                )  # Disable auto-solving captchas
+                if __debug__:
+                    await client.send(
+                        "Proxy.setLocation",
+                        {"lat": 30.2712, "lon": -97.7417, "distance": 50},
+                    )  # Set location to Austin, TX
+                    await client.send(
+                        "Captcha.setAutoSolve", {"autoSolve": False}
+                    )  # Disable auto-solving captchas
+
                 await client.send(
                     "Network.setCacheDisabled", {"cacheDisabled": False}
                 )  # Force enable cache
@@ -229,7 +238,9 @@ class Scraper:
                 await input.type(name)
                 user_btn = page.get_by_title(name, exact=True)
                 await user_btn.wait_for(state="attached")
-                await user_btn.click()
+
+                if not __debug__:
+                    await user_btn.click()
             except Exception as e:
                 check_in.status = "failed"
                 check_in.updated_at = datetime.now(timezone.utc).isoformat()

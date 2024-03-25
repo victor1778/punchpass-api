@@ -7,11 +7,12 @@ from fastapi import APIRouter, HTTPException, Path, Request
 
 from dependencies import Utils
 from models import CheckIn
+from models.events import WriteUserToEvent, WriteUserToManyEvents
 
 router = APIRouter(prefix="/schedule")
 
 
-@router.get("/", status_code=200)
+@router.get("/", response_model=dict[str, list[dict]], status_code=200)
 async def read_schedule() -> dict[str, list[dict]]:
     schedule = Utils.fetch_events_for_today()
 
@@ -21,7 +22,7 @@ async def read_schedule() -> dict[str, list[dict]]:
     return {"schedule": schedule}
 
 
-@router.get("/{id}", status_code=200)
+@router.get("/{id}", response_model=dict[str, str], status_code=200)
 async def read_event(
     id: Annotated[int, Path(title="The ID of the event to get")]
 ) -> dict:
@@ -32,16 +33,15 @@ async def read_event(
 
     return event
 
-
 @router.post("/{id}/check-in", status_code=202)
 async def write_user_to_event(
     id: Annotated[int, Path(title="The ID of the event to get")],
-    payload: Annotated[dict, "payload"],
+    payload: WriteUserToEvent,
     request: Request,
 ) -> dict[str, str]:
     event_id = id
-    first_name = payload.get("first_name")
-    last_name = payload.get("last_name")
+    first_name = payload.first_name
+    last_name = payload.last_name
 
     if not first_name or not last_name:
         return HTTPException(
@@ -94,12 +94,12 @@ async def write_user_to_event(
 
 @router.post("/check-in/bulk", status_code=202)
 async def write_user_to_many_events(
-    payload: Annotated[dict, "payload"],
+    payload: WriteUserToManyEvents,
     request: Request,
 ) -> dict[str, str]:
-    event_ids = payload.get("event_ids")
-    first_name = payload.get("first_name")
-    last_name = payload.get("last_name")
+    event_ids = payload.event_ids
+    first_name = payload.first_name
+    last_name = payload.last_name
 
     # Validate input
     if not event_ids or not first_name or not last_name:
@@ -166,28 +166,18 @@ async def write_user_to_many_events(
         )
 
 
-@router.get("/check-in/status/{id}")
+@router.get("/check-in/status/{id}", response_model=CheckIn, status_code=200)
 async def get_check_in_status(
     id: Annotated[str, Path(title="The ID of the Check In to get")]
 ) -> dict[str, str]:
     check_in = Utils.fetch_check_in(id)
+
     if not check_in:
         raise HTTPException(status_code=204, detail=f"Task {id} not found")
-    
-    response = {
-        "id": check_in.id,
-        "event_id": check_in.event_id,
-        "user_id": check_in.user_id,
-        "status": check_in.status,
-        "created_at": check_in.created_at,
-        "updated_at": check_in.updated_at,
-    }
 
     if check_in.status == "confirmed":
-        raise HTTPException(status_code=200, detail=response)
+        raise HTTPException(status_code=200, detail=check_in.model_dump())
     elif check_in.status == "failed":
-        raise HTTPException(
-            status_code=500, detail=response
-        )
+        raise HTTPException(status_code=500, detail=check_in.model_dump())
     else:
-        raise HTTPException(status_code=302, detail=response)
+        raise HTTPException(status_code=302, detail=check_in.model_dump())

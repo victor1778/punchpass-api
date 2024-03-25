@@ -1,13 +1,12 @@
-from dataclasses import asdict, dataclass
+from pydantic import BaseModel, Field
+
+class User(BaseModel):
+    id: int = Field(examples=[12345678])
+    first_name: str = Field(examples=["John"])
+    last_name: str = Field(examples=["Doe"])
+    phone: str = Field(examples=["1234567890"])
+    email: str = Field(examples=["johndoe@example.com"])
 
 
-@dataclass
-class User:
-    id: int = None
-    first_name: str = None
-    last_name: str = None
-    phone: str = None
-    email: str = None
-
-    def to_dict(self) -> dict:
-        return asdict(self)
+class ReadUser(BaseModel):
+    email: str = Field(examples=["johndoe@example.com"])

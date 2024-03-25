@@ -106,7 +106,7 @@ class Utils:
                     phone=item[3],
                     email=item[4],
                 )
-                return user.to_dict()
+                return user.model_dump()
 
             return None
 
@@ -243,7 +243,13 @@ class Utils:
         phone = data.get("phone", "")
         email = data.get("email", "")
 
-        return User(int(id), first_name, last_name, phone, email)
+        return User(
+            id=int(id),
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            email=email,
+        )
 
     @staticmethod
     def format_time(

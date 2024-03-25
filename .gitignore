@@ -161,4 +161,3 @@ cython_debug/
 #.idea/
 
 init_db.py
-start_punchpass-api.txt
