@@ -27,15 +27,13 @@ def transform_schedule(html: str) -> Generator[Event, None, None]:
     """Parses HTML to extract and transform schedule information into Event objects."""
     logging.info(f"Parsing HTML to extract schedule items")
     content = HTMLParser(html)
-    raw_schedule_items = content.css_first("div.instances-for-day").css(
-        "div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
+    raw_schedule_items = content.css("div.instances-for-day div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
     )
     #TODO: Delete this line for formating
-    date = content.css_first("div.instances-for-day").attrs["data-day"]
 
 
     for item in raw_schedule_items:
-        yield scraper.parse_schedule_item(item, date)
+        yield scraper.parse_schedule_item(item)
 
 
 def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:

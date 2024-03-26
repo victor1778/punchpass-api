@@ -18,6 +18,9 @@ logging.basicConfig(
 
 INSTRUCTOR_REGEX = re.compile(r"with\s+(.+?)(?:\s*⋅\s*(.+))?$")
 END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
+START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+\s[ap]m)-\d+:\d+\s[ap]m")
+
+
 SBR_WS_CDP = "wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222"
 
 
@@ -104,7 +107,7 @@ class Scraper:
             logging.error(f"Failed to fetch page: {url}. Error: {e}")
             return None
 
-    def parse_schedule_item(self, elem: HTMLParser, date: str) -> Event:
+    def parse_schedule_item(self, elem: HTMLParser) -> Event:
         url = f"{self.baseurl}{elem.css_first('div.cell.auto.small-order-2.medium-auto.medium-order-2 strong a.with-icon').attrs['href']}"
         id = url.split("/")[-1]
 
@@ -143,9 +146,8 @@ class Scraper:
             .text()
             .strip()
         )
-        dt = datetime.strptime(f"{date} {start_elem}", "%B %d, %Y %I:%M %p")
         # TODO: Make sure that the function works as end time
-        start = Utils.format_time(dt.isoformat())
+        start = self._get_start_time(url)
         end = self._get_end_time(url)
         return Event(int(id), status, url, title, location, instructor, start, end)
 
@@ -162,6 +164,20 @@ class Scraper:
             except ValueError:
                 logging.error("Failed to parse end time.")
         return None
+    
+    def _get_start_time(self, url: str) -> Optional[Dict[str, str]]:
+        response = self.get_page(url)
+        if response and response.status_code == 200:
+            html = HTMLParser(response.text)
+            start_elem = html.css_first("div.cell.auto h1 small").text().strip()
+            start_elem_str = START_ELEM_REGEX.sub(r"\1 \2", start_elem)
+            try:
+                dt = datetime.strptime(start_elem_str, "%B %d, %Y %I:%M %p")
+                start = Utils.format_time(dt.isoformat())
+                return start
+            except ValueError:
+                logging.error("Failed to parse end time.")
+            return None
 
     def fetch_punchpass_user_data(self, email: str) -> User | None:
         url = f"https://app.punchpass.com/a/customers.json?columns[3][data]=email&columns[3][searchable]=true&columns[3][orderable]=true&columns[3][search][value]={email}&start=0&length=1"
