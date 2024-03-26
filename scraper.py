@@ -139,14 +139,6 @@ class Scraper:
         match = INSTRUCTOR_REGEX.search(instructor_elem)
         instructor = match.group(1)
         location = match.group(2) if match.group(2) else ""
-        start_elem = (
-            elem.css_first(
-                "div.cell.small-12.small-order-1.medium-2.medium-order-1.large-2"
-            )
-            .text()
-            .strip()
-        )
-        # TODO: Make sure that the function works as end time
         start = self._get_start_time(url)
         end = self._get_end_time(url)
         return Event(int(id), status, url, title, location, instructor, start, end)
