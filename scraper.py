@@ -18,7 +18,7 @@ logging.basicConfig(
 
 INSTRUCTOR_REGEX = re.compile(r"with\s+(.+?)(?:\s*⋅\s*(.+))?$")
 END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
-START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+)-\d+:\d+(\s[ap]m)")
+START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+)-\d+:\d+\s([ap]m)")
 
 
 SBR_WS_CDP = "wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222"
