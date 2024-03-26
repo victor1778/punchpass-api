@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  _build:
+    image: backend-image
+    command: ["echo", "DONE!"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+  shell:
+    image: backend-image
+    command: ["echo", "DONE!"]
+    container_name: shell
+    depends_on:
+      - _build
+    volumes:
+      - ./src:/code/src
+    environment:
+      - EMAIL=javierjimenez029@gmail.com
+      - PASSWORD=Inicio01
+      - SBR_WS_CDP=wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222
+
+  api:
+    image: backend-image
+    container_name: api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - _build
+    volumes:
+      - ./src:/code/src
+    command: python -O src/main.py

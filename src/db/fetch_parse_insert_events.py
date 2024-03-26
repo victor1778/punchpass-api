@@ -82,7 +82,7 @@ if __name__ == "__main__":
     html = extract_schedule()
     schedule = transform_schedule(html)
 
-    with sqlite3.connect("./db/database.db") as conn:
+    with sqlite3.connect("./src/db/database.db") as conn:
         cur = conn.cursor()
         batch = [event for event in schedule]
         load_schedule(cur, batch)

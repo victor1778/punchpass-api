@@ -18,7 +18,7 @@ class Utils:
         """Fetches schedule items from the database that have the start date or end date as today."""
         today = datetime.now().strftime("%Y-%m-%d")
         logging.info(f"Fetching today's events from the database")
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM Event 
@@ -56,7 +56,7 @@ class Utils:
         """Fetches a single schedule item from the database matching the given ID."""
         logging.info(f"Fetching event from the database with ID: {item_id}")
 
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM Event 
@@ -89,7 +89,7 @@ class Utils:
         """Fetches a single user from the database matching the given email."""
         logging.info(f"Fetching user from the database with email: {email}")
 
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM User 
@@ -117,7 +117,7 @@ class Utils:
             f"Fetching user from the database with name: {first_name} {last_name}"
         )
 
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM User 
@@ -144,7 +144,7 @@ class Utils:
         """Fetches a single user from the database matching the given name."""
         logging.info(f"Fetching Check In from the database with id: {id}")
 
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
                     SELECT * FROM CheckIn 
@@ -170,7 +170,7 @@ class Utils:
     def load_user(user: User) -> None:
         """Inserts a single User into the database."""
         logging.info(f"Loading User {user.id} to database")
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             try:
                 cur.execute(
@@ -192,7 +192,7 @@ class Utils:
     def load_check_in(check_in: CheckIn) -> None:
         """Inserts a Check In receipt into the database."""
         logging.info(f"Loading Check In {check_in.id} to database")
-        with sqlite3.connect("./app/db/database.db") as conn:
+        with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             try:
                 cur.execute(

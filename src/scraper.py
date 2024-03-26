@@ -21,9 +21,6 @@ END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
 START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+)-\d+:\d+\s([ap]m)")
 
 
-SBR_WS_CDP = "wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222"
-
-
 class Scraper:
     _instance: Optional["Scraper"] = None
     cookies_store: Dict[str, str] = {}
@@ -200,7 +197,7 @@ class Scraper:
 
         async with async_playwright() as p:
             if __debug__:
-                browser = await p.chromium.connect_over_cdp(SBR_WS_CDP)
+                browser = await p.chromium.connect_over_cdp(os.environ.get("SBR_WS_CDP"))
             else:
                 browser = await p.chromium.launch()
             try:
@@ -212,6 +209,7 @@ class Scraper:
                     logging.info(f"Launching browser. Navigating to {event.url}...")
 
                 context = await browser.new_context()
+                context.set_default_timeout(120000)
                 await context.add_cookies(
                     Utils.format_cookies(self.cookies_store, self.baseurl)
                 )

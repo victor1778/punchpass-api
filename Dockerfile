@@ -1,12 +1,13 @@
-FROM python:3.12.2
+FROM mcr.microsoft.com/playwright/python:v1.42.0-jammy
 
-WORKDIR /app
+WORKDIR /code
 
-COPY ./requirements.txt /app/requirements.txt
+COPY ./requirements.txt /code/requirements.txt
 
-RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN playwright install --with-deps
 
-COPY ./app /app/app
+COPY ./src /code/src
 
 EXPOSE 8000
 
