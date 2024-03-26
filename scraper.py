@@ -18,7 +18,7 @@ logging.basicConfig(
 
 INSTRUCTOR_REGEX = re.compile(r"with\s+(.+?)(?:\s*⋅\s*(.+))?$")
 END_ELEM_REGEX = re.compile(r"(.+)\s@\s\d+:\d+-(\d+:\d+\s[ap]m)")
-START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+\s[ap]m)-\d+:\d+\s[ap]m")
+START_ELEM_REGEX = re.compile(r"(.+)\s@\s(\d+:\d+)-\d+:\d+(\s[ap]m)")
 
 
 SBR_WS_CDP = "wss://brd-customer-hl_2b2127e4-zone-scraping_browser1-country-us:w5hhlx7pc45s@brd.superproxy.io:9222"
@@ -170,9 +170,10 @@ class Scraper:
         if response and response.status_code == 200:
             html = HTMLParser(response.text)
             start_elem = html.css_first("div.cell.auto h1 small").text().strip()
-            start_elem_str = START_ELEM_REGEX.sub(r"\1 \2", start_elem)
+            start_elem_str = START_ELEM_REGEX.sub(r"\1 \2 \3", start_elem)
             try:
                 dt = datetime.strptime(start_elem_str, "%B %d, %Y %I:%M %p")
+                logging.info(dt)
                 start = Utils.format_time(dt.isoformat())
                 return start
             except ValueError:
