@@ -3,7 +3,6 @@
 ## Prerequisites
 
 - Docker: [Install Docker](https://docs.docker.com/get-docker/)
-- Docker Compose is included with Docker for Windows and Mac. Linux users [follow here](https://docs.docker.com/compose/install/).
 
 ## Setup Steps
 
