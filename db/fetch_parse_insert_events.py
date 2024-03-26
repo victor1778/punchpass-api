@@ -30,7 +30,9 @@ def transform_schedule(html: str) -> Generator[Event, None, None]:
     raw_schedule_items = content.css_first("div.instances-for-day").css(
         "div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
     )
+    #TODO: Delete this line for formating
     date = content.css_first("div.instances-for-day").attrs["data-day"]
+
 
     for item in raw_schedule_items:
         yield scraper.parse_schedule_item(item, date)

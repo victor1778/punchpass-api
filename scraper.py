@@ -144,6 +144,7 @@ class Scraper:
             .strip()
         )
         dt = datetime.strptime(f"{date} {start_elem}", "%B %d, %Y %I:%M %p")
+        # TODO: Make sure that the function works as end time
         start = Utils.format_time(dt.isoformat())
         end = self._get_end_time(url)
         return Event(int(id), status, url, title, location, instructor, start, end)
