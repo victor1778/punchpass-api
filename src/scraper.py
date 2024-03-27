@@ -65,7 +65,7 @@ class Scraper:
         logging.info("Loading cookies.")
         if Scraper.cookies_store:
             try:
-                self.session.cookies.update(Scraper.cookies_store)
+                self.session.cookies.update(self.cookies_store)
                 logging.info("Loaded cookies from in-memory store")
             except Exception as e:
                 logging.error(f"Failed to load cookies: {e}")
@@ -193,30 +193,43 @@ class Scraper:
           None
         """
         start = time.perf_counter()
+        browser = None
         name = f"{user.first_name} {user.last_name}"
-
         async with async_playwright() as p:
             if __debug__:
-                browser = await p.chromium.connect_over_cdp(os.environ.get("SBR_WS_CDP"))
+                browser = await p.chromium.launch(
+                    args=[
+                        "--no-sanbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-gl-drawing-for-tests",
+                    ],
+                )
             else:
-                browser = await p.chromium.launch()
+                browser = await p.chromium.connect_over_cdp(
+                    os.environ.get("SBR_WS_CDP")
+                )
+
             try:
                 if __debug__:
+                    logging.info(f"Launching browser. Navigating to {event.url}...")
+                else:
                     logging.info(
                         f"Connected to Scraping Browser. Navigating to {event.url}..."
                     )
-                else:
-                    logging.info(f"Launching browser. Navigating to {event.url}...")
 
                 context = await browser.new_context()
-                context.set_default_timeout(120000)
                 await context.add_cookies(
                     Utils.format_cookies(self.cookies_store, self.baseurl)
                 )
                 page = await context.new_page()
                 client = await page.context.new_cdp_session(page)
 
-                if __debug__:
+                await client.send(
+                    "Network.setCacheDisabled", {"cacheDisabled": False}
+                )  # Force enable cache
+
+                if not __debug__:
+                    logging.info("PRODUCTION MODE")
                     await client.send(
                         "Proxy.setLocation",
                         {"lat": 30.2712, "lon": -97.7417, "distance": 50},
@@ -224,10 +237,6 @@ class Scraper:
                     await client.send(
                         "Captcha.setAutoSolve", {"autoSolve": False}
                     )  # Disable auto-solving captchas
-
-                await client.send(
-                    "Network.setCacheDisabled", {"cacheDisabled": False}
-                )  # Force enable cache
 
                 await page.route(
                     "**/*",
@@ -238,6 +247,7 @@ class Scraper:
                         else route.continue_()
                     ),
                 )
+                
                 await page.goto(f"{event.url}/attendances/new")
                 customer_list = page.get_by_title("{{2*2}} lkslsk")
                 await customer_list.wait_for(state="attached")
@@ -248,15 +258,16 @@ class Scraper:
 
                 if not __debug__:
                     await user_btn.click()
+
             except Exception as e:
                 check_in.status = "failed"
                 check_in.updated_at = datetime.now(timezone.utc).isoformat()
                 Utils.load_check_in(check_in)
                 logging.error(f"Error checking in {name}: {e}")
             finally:
+                await browser.close()
                 check_in.status = "confirmed"
                 check_in.updated_at = datetime.now(timezone.utc).isoformat()
                 Utils.load_check_in(check_in)
-                await browser.close()
                 runtime = "{:.4f}".format(time.perf_counter() - start)
                 logging.info(f"Request completed in {runtime} s")
