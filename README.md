@@ -17,7 +17,7 @@
 
    Navigate to the project root and run:
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
    This command builds images and starts containers as defined in `docker-compose.yaml`.
 
@@ -29,5 +29,5 @@
 
 To stop and remove containers and networks, run:
 ```bash
-docker-compose down
+docker compose down
 ```
