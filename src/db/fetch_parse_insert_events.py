@@ -1,9 +1,10 @@
+import concurrent.futures
 import logging
 import os
 import sqlite3
 import sys
 import time
-from typing import Generator
+from typing import List
 
 from selectolax.parser import HTMLParser
 
@@ -23,14 +24,23 @@ def extract_schedule() -> str:
     return html
 
 
-def transform_schedule(html: str) -> Generator[Event, None, None]:
+def transform_schedule_item(item) -> Event:
+    """Parses a single HTML item to extract and transform schedule information into an Event object."""
+    return scraper.parse_schedule_item(item)
+
+
+def transform_schedule(html: str) -> List[Event]:
     """Parses HTML to extract and transform schedule information into Event objects."""
     logging.info(f"Parsing HTML to extract schedule items")
     content = HTMLParser(html)
-    raw_schedule_items = content.css("div.instances-for-day div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
+    raw_schedule_items = content.css(
+        "div.instances-for-day div.instance div.grid-x.grid-padding-x div.cell.auto div.instance__content"
     )
-    for item in raw_schedule_items:
-        yield scraper.parse_schedule_item(item)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        events = list(executor.map(transform_schedule_item, raw_schedule_items))
+
+    return events
 
 
 def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
@@ -69,7 +79,6 @@ def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
                 StartDateTime=excluded.StartDateTime,
                 EndDate=excluded.EndDate,
                 EndDateTime=excluded.EndDateTime
-            WHERE EventID=excluded.EventID;
             """,
             values,
         )
@@ -83,6 +92,7 @@ if __name__ == "__main__":
     schedule = transform_schedule(html)
 
     with sqlite3.connect("./src/db/database.db") as conn:
+        conn.isolation_level = None
         cur = conn.cursor()
         batch = [event for event in schedule]
         load_schedule(cur, batch)
