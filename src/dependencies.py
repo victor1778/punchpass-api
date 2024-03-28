@@ -16,16 +16,17 @@ class Utils:
     @staticmethod
     def fetch_events_for_today() -> list[dict] | None:
         """Fetches schedule items from the database that have the start date or end date as today."""
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now(NY_TZ).date().isoformat()
+        logging.info(f"today: {today}")
         logging.info(f"Fetching today's events from the database")
         with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
-                    SELECT * FROM Event 
-                    WHERE StartDate = ?
-                    AND Title NOT LIKE "Sensual Move%"
-                    AND Title NOT LIKE "Private Session%"
-                    ORDER BY StartDateTime ASC
+                    SELECT * FROM event 
+                    WHERE SUBSTR(DATE(start, 'localtime'), 1, 10) = ?
+                    AND title NOT LIKE "Sensual Move%"
+                    AND title NOT LIKE "Private Session%"
+                    ORDER BY start ASC
                     """
             cur.execute(query, (today,))
             items = cur.fetchall()
@@ -36,17 +37,18 @@ class Utils:
         schedule = []
         for item in items:
             event = Event(
-                item[0],
-                item[1],
-                item[2],
-                item[3],
-                item[4],
-                item[5],
-                {"date": item[6], "dateTime": item[7], "timeZone": item[8]},
-                {"date": item[9], "dateTime": item[10], "timeZone": item[11]},
-                item[12],
+                id=item[0],
+                status=item[1],
+                url=item[2],
+                created=item[3],
+                updated=item[4],
+                title=item[5],
+                location=item[6],
+                instructor=item[7],
+                start=item[8],
+                end=item[9],
             )
-            schedule.append(event.to_dict())
+            schedule.append(event.model_dump())
         return schedule
 
     @staticmethod
@@ -59,8 +61,8 @@ class Utils:
         with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
-                    SELECT * FROM Event 
-                    WHERE EventID = ?
+                    SELECT * FROM event 
+                    WHERE event_id = ?
                     """
             cur.execute(query, (item_id,))
             item = cur.fetchone()
@@ -70,15 +72,16 @@ class Utils:
                     id=item[0],
                     status=item[1],
                     url=item[2],
-                    title=item[3],
-                    location=item[4],
-                    instructor=item[5],
-                    start={"date": item[6], "dateTime": item[7], "timeZone": item[8]},
-                    end={"date": item[9], "dateTime": item[10], "timeZone": item[11]},
-                    timestamp=item[12],
+                    created=item[3],
+                    updated=item[4],
+                    title=item[5],
+                    location=item[6],
+                    instructor=item[7],
+                    start=item[8],
+                    end=item[9],
                 )
                 if type is None:
-                    return event.to_dict()
+                    return event.model_dump()
                 else:
                     return event
 
@@ -92,8 +95,8 @@ class Utils:
         with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
-                    SELECT * FROM User 
-                    WHERE Email = ?
+                    SELECT * FROM user 
+                    WHERE email = ?
                     """
             cur.execute(query, (email,))
             item = cur.fetchone()
@@ -120,9 +123,9 @@ class Utils:
         with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
-                    SELECT * FROM User 
-                    WHERE FirstName = ?
-                    AND LastName = ?
+                    SELECT * FROM user 
+                    WHERE first_name = ?
+                    AND last_name = ?
                     """
             cur.execute(query, (first_name, last_name))
             item = cur.fetchone()
@@ -147,8 +150,8 @@ class Utils:
         with sqlite3.connect("./src/db/database.db") as conn:
             cur = conn.cursor()
             query = """
-                    SELECT * FROM CheckIn 
-                    WHERE CheckInId = ?
+                    SELECT * FROM check_in 
+                    WHERE check_in_id = ?
                     """
             cur.execute(query, (id,))
             item = cur.fetchone()
@@ -159,8 +162,8 @@ class Utils:
                     event_id=item[1],
                     user_id=item[2],
                     status=item[3],
-                    created_at=item[4],
-                    updated_at=item[5],
+                    created=item[4],
+                    updated=item[5],
                 )
                 return check_in
 
@@ -175,7 +178,7 @@ class Utils:
             try:
                 cur.execute(
                     """
-                    INSERT INTO User
+                    INSERT INTO user
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (user.id, user.first_name, user.last_name, user.phone, user.email),
@@ -197,19 +200,19 @@ class Utils:
             try:
                 cur.execute(
                     """
-                    INSERT INTO CheckIn
+                    INSERT INTO check_in
                     VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(CheckInID) DO UPDATE SET
-                        Status=excluded.Status,
-                        UpdatedAt=excluded.UpdatedAt
+                    ON CONFLICT(check_in_id) DO UPDATE SET
+                        status=excluded.status,
+                        updated=excluded.updated
                     """,
                     (
                         check_in.id,
                         check_in.event_id,
                         check_in.user_id,
                         check_in.status,
-                        check_in.created_at,
-                        check_in.updated_at,
+                        check_in.created,
+                        check_in.updated,
                     ),
                 )
                 conn.commit()
@@ -252,16 +255,13 @@ class Utils:
         )
 
     @staticmethod
-    def format_time(dt: datetime) -> dict[str, str] | None:
+    def format_time(dt: datetime) -> str | None:
         try:
             tz = pytz.timezone("America/New_York")
             if dt.tzinfo is None:
                 dt = tz.localize(dt)
-            return {
-                "date": dt.date().isoformat(),
-                "dateTime": dt.isoformat(),
-                "timeZone": "America/New_York",
-            }
+            utc = dt.astimezone(pytz.utc)
+            return utc.isoformat()
         except ValueError:
             logging.error("Invalid time format")
         return None

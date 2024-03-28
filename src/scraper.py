@@ -138,7 +138,20 @@ class Scraper:
         location = match.group(2) if match.group(2) else ""
         start = self._get_start_time(url)
         end = self._get_end_time(url)
-        return Event(int(id), status, url, title, location, instructor, start, end)
+
+        event = Event(
+            id=int(id),
+            status=status,
+            url=url,
+            created=datetime.now(timezone.utc).isoformat(),
+            updated=datetime.now(timezone.utc).isoformat(),
+            title=title,
+            location=location,
+            instructor=instructor,
+            start=start,
+            end=end,
+        )
+        return event
 
     def _get_end_time(self, url: str) -> Optional[Dict[str, str]]:
         response = self.get_page(url)
@@ -261,13 +274,13 @@ class Scraper:
 
             except Exception as e:
                 check_in.status = "failed"
-                check_in.updated_at = datetime.now(timezone.utc).isoformat()
+                check_in.updated = datetime.now(timezone.utc).isoformat()
                 Utils.load_check_in(check_in)
                 logging.error(f"Error checking in {name}: {e}")
             finally:
                 await browser.close()
                 check_in.status = "confirmed"
-                check_in.updated_at = datetime.now(timezone.utc).isoformat()
+                check_in.updated = datetime.now(timezone.utc).isoformat()
                 Utils.load_check_in(check_in)
                 runtime = "{:.4f}".format(time.perf_counter() - start)
                 logging.info(f"Request completed in {runtime} s")
