@@ -252,18 +252,15 @@ class Utils:
         )
 
     @staticmethod
-    def format_time(
-        time: str, tz_name: str = "America/New_York"
-    ) -> dict[str, str] | None:
+    def format_time(dt: datetime) -> dict[str, str] | None:
         try:
-            dt = datetime.fromisoformat(time)
-            tz = pytz.timezone(tz_name)
+            tz = pytz.timezone("America/New_York")
             if dt.tzinfo is None:
                 dt = tz.localize(dt)
             return {
                 "date": dt.date().isoformat(),
                 "dateTime": dt.isoformat(),
-                "timeZone": tz_name,
+                "timeZone": "America/New_York",
             }
         except ValueError:
             logging.error("Invalid time format")

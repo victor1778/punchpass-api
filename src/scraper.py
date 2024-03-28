@@ -148,7 +148,7 @@ class Scraper:
             end_elem_str = END_ELEM_REGEX.sub(r"\1 \2", end_elem)
             try:
                 dt = datetime.strptime(end_elem_str, "%B %d, %Y %I:%M %p")
-                end = Utils.format_time(dt.isoformat())
+                end = Utils.format_time(dt)
                 return end
             except ValueError:
                 logging.error("Failed to parse end time.")
@@ -247,7 +247,7 @@ class Scraper:
                         else route.continue_()
                     ),
                 )
-                
+
                 await page.goto(f"{event.url}/attendances/new")
                 customer_list = page.get_by_title("{{2*2}} lkslsk")
                 await customer_list.wait_for(state="attached")
