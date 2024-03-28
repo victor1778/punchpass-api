@@ -162,7 +162,7 @@ class Scraper:
             start_elem_str = START_ELEM_REGEX.sub(r"\1 \2 \3", start_elem)
             try:
                 dt = datetime.strptime(start_elem_str, "%B %d, %Y %I:%M %p")
-                start = Utils.format_time(dt.isoformat())
+                start = Utils.format_time(dt)
                 return start
             except ValueError:
                 logging.error("Failed to parse end time.")
