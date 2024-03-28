@@ -6,5 +6,5 @@ class CheckIn(BaseModel):
     event_id: int = Field(examples=[12345678])
     user_id: int = Field(examples=[12345678])
     status: str = Field(examples=["confirmed"])
-    created_at: str = Field(examples=["1970-01-01T00:00:00-00:00"])
-    updated_at: str = Field(examples=["1970-01-01T00:00:00-00:00"])
+    created: str = Field(examples=["1970-01-01T00:00:00-00:00"])
+    updated: str = Field(examples=["1970-01-01T00:00:00-00:00"])

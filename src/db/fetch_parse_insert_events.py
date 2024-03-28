@@ -53,32 +53,27 @@ def load_schedule(cur: sqlite3.Cursor, batch: list[Event]) -> None:
                 item.id,
                 item.status,
                 item.url,
+                item.created,
+                item.updated,
                 item.title,
                 item.location,
                 item.instructor,
-                item.start["date"],
-                item.start["dateTime"],
-                item.start["timeZone"],
-                item.end["date"],
-                item.end["dateTime"],
-                item.end["timeZone"],
-                item.timestamp,
+                item.start,
+                item.end,
             )
         )
 
     try:
         cur.executemany(
             """
-            INSERT INTO Event 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(EventID) DO UPDATE SET
-                Status=excluded.Status,
-                Location=excluded.Location,
-                Instructor=excluded.Instructor,
-                StartDate=excluded.StartDate,
-                StartDateTime=excluded.StartDateTime,
-                EndDate=excluded.EndDate,
-                EndDateTime=excluded.EndDateTime
+            INSERT INTO event (event_id, status, url, created, updated, title, location, instructor, start, end)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(event_id) DO UPDATE SET
+                status=excluded.status,
+                location=excluded.location,
+                instructor=excluded.instructor,
+                start=excluded.start,
+                end=excluded.end
             """,
             values,
         )

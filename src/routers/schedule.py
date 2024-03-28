@@ -70,8 +70,8 @@ async def write_user_to_event(
         event_id=event.id,
         user_id=user.id,
         status="pending",
-        created_at=datetime.now(timezone.utc).isoformat(),
-        updated_at=datetime.now(timezone.utc).isoformat(),
+        created=datetime.now(timezone.utc).isoformat(),
+        updated=datetime.now(timezone.utc).isoformat(),
     )
     Utils.load_check_in(check_in)
 
